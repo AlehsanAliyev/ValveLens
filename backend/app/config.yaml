@@ -1,0 +1,12 @@
+tau_zone: 0.65
+tau_det: 0.40
+tau_ocr: 0.70
+tau_reid: 0.50
+tau_gap: 0.08
+tau_blur: 0.60
+tau_low_light: 0.35
+frame_stride: 5
+max_zone_candidates: 5
+max_device_matches: 5
+detector_model: yolov8n.pt
+save_rois: true
