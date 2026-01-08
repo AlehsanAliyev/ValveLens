@@ -61,4 +61,5 @@ async def add_device_refs(
 def rebuild_index(request: Request) -> dict:
     pipeline = request.app.state.pipeline
     count = rebuild_device_index(pipeline.embedder.dim)
+    pipeline.device_index.load()
     return {"count": count}

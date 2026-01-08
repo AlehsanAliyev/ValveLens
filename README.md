@@ -124,6 +124,12 @@ Batch inference on video:
 python -m app.cli.run_video --video D:\data\videos\demo.mp4 --out results.json
 ```
 
+Smoke test (requires a sample image):
+
+```powershell
+python -m app.cli.smoke_test --image D:\data\samples\frame.jpg
+```
+
 ## API overview
 
 ```
@@ -140,6 +146,83 @@ POST /feedback
 ```
 
 Every inference is stored as an observation, so you get traceability today and a clean path to feedback driven improvements later.
+
+## Make it Work (End-to-End)
+
+This runbook assumes you have a few zone photos and a few device reference photos ready. You can use phone images from your home and printed tags like V-1023 or PG-45 taped next to an object.
+
+Step 1, start the backend:
+
+```powershell
+cd d:\python_works\ValveLens
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r backend\requirements.txt
+uvicorn app.main:app --reload --port 8000 --app-dir backend
+```
+
+Step 2, start the frontend:
+
+```powershell
+cd d:\python_works\ValveLens\frontend
+npm install
+npm run dev
+```
+
+Step 3, initialize the DB:
+
+```powershell
+cd d:\python_works\ValveLens\backend
+python -m app.cli.init_db
+```
+
+At this point, `GET /debug/status` should show zeros for all counts.
+
+Step 4, create zones and add keyframes:
+
+```powershell
+python -m app.cli.create_zone --name "Kitchen" --desc "Sink wall"
+python -m app.cli.add_keyframes --zone_id <ZONE_ID> --folder D:\data\zones\kitchen
+python -m app.cli.rebuild_zone_index
+```
+
+Now `/debug/status` should show non-zero `zones`, `zone_keyframes`, and `faiss.zones`.
+
+Step 5, create a device and add references:
+
+```powershell
+python -m app.cli.create_device --device_id "V-1023" --zone_id <ZONE_ID> --type valve --desc "Printed tag"
+python -m app.cli.add_device_refs --device_id "V-1023" --folder D:\data\devices\V-1023
+python -m app.cli.rebuild_device_index
+```
+
+Now `/debug/status` should show non-zero `devices`, `device_refs`, and `faiss.devices`.
+
+Step 6, test webcam inference:
+
+Open `http://localhost:5173`, go to Live, select Webcam, and watch the decision updates. If OCR sees the tag and the device exists, the decision should move to ACCEPTED.
+
+Step 7, test tap-select feedback:
+
+Click "Tap Select" and click a box. The decision should update to ACCEPTED with the selected device in the UI.
+
+Step 8, run a smoke test from the CLI:
+
+```powershell
+python -m app.cli.smoke_test --image D:\data\samples\frame.jpg
+```
+
+### Troubleshooting
+
+If zone candidates are empty, ensure you added keyframes and rebuilt the zone index. Check `/debug/status` for `zone_keyframes` and `faiss.zones` counts.
+
+If device matches are empty, ensure device refs are added and the device index is rebuilt. Verify `device_refs` and `faiss.devices` in `/debug/status`.
+
+If OCR is empty, make sure the tag text is large and high contrast, and that EasyOCR or Tesseract is installed. The system runs without OCR, but it will rely on ReID and policy instead.
+
+If FAISS size is 0, rebuild the index after adding data. The index is not auto built.
+
+If the frontend does not update after tap select, check the `/feedback` response in the browser devtools. The response should include a `decision` object for tap_select, confirm, and reject.
 
 ## Configuration
 

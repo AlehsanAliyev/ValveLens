@@ -101,3 +101,8 @@ export async function sendFeedback(payload) {
   });
   return handleResponse(res);
 }
+
+export async function getDebugStatus() {
+  const res = await fetch(`${API_BASE}/debug/status`);
+  return handleResponse(res);
+}

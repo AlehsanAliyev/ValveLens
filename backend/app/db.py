@@ -7,6 +7,16 @@ from uuid import uuid4
 
 import numpy as np
 
+
+def _json_default(obj: Any) -> Any:
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj
+
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "valvelens.db"
 
 
@@ -169,15 +179,6 @@ def add_device_ref(
 
 
 def insert_observation(payload: Dict[str, Any]) -> None:
-    def _json_default(obj: Any) -> Any:
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return obj
-
     conn = get_conn()
     conn.execute(
         """
@@ -253,3 +254,49 @@ def get_device(device_id: str) -> Optional[Dict[str, Any]]:
     ).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def fetch_counts() -> Dict[str, int]:
+    conn = get_conn()
+    cur = conn.cursor()
+    counts = {}
+    for table in ["zones", "zone_keyframes", "devices", "device_refs", "observations", "feedback"]:
+        cur.execute(f"SELECT COUNT(*) as count FROM {table}")
+        counts[table] = int(cur.fetchone()["count"])
+    conn.close()
+    return counts
+
+
+def fetch_observation(obs_id: str) -> Optional[Dict[str, Any]]:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM observations WHERE obs_id = ?", (obs_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def update_observation(
+    obs_id: str,
+    payload_json: Dict[str, Any],
+    final_device_id: Optional[str],
+    final_conf: Optional[float],
+    policy_action: Optional[str],
+) -> None:
+    conn = get_conn()
+    conn.execute(
+        """
+        UPDATE observations
+        SET payload_json = ?, final_device_id = ?, final_conf = ?, policy_action = ?
+        WHERE obs_id = ?
+        """,
+        (
+            json.dumps(payload_json, default=_json_default),
+            final_device_id,
+            final_conf,
+            policy_action,
+            obs_id,
+        ),
+    )
+    conn.commit()
+    conn.close()

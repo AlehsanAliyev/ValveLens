@@ -1,3 +1,3 @@
-from app.routes import devices, feedback, infer, zones
+from app.routes import debug, devices, feedback, infer, zones
 
-__all__ = ["infer", "zones", "devices", "feedback"]
+__all__ = ["infer", "zones", "devices", "feedback", "debug"]

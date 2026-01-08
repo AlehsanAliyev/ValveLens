@@ -58,4 +58,5 @@ async def add_keyframes(
 def rebuild_index(request: Request) -> dict:
     pipeline = request.app.state.pipeline
     count = rebuild_zone_index(pipeline.embedder.dim)
+    pipeline.zone_index.load()
     return {"count": count}

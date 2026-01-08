@@ -14,7 +14,7 @@ from app.detector import Detector
 from app.embeddings import Embedder
 from app.faiss_store import FaissIndex
 from app.fusion import fuse_scores
-from app.ocr import OCRReader, normalize_text
+from app.ocr import OCRReader, extract_device_id, normalize_text
 from app.policy import decide_policy
 from app.quality import compute_quality
 from app.reid import ReIDEmbedder
@@ -101,19 +101,43 @@ class InferencePipeline:
             tau_blur=self.config["tau_blur"],
             tau_low_light=self.config["tau_low_light"],
         )
+        LOGGER.info(
+            "stage=quality request_id=%s blur=%.3f brightness=%.3f glare=%.3f",
+            request_id,
+            quality["blur_score"],
+            quality["brightness"],
+            quality["glare_score"],
+        )
 
         pil_image = Image.fromarray(frame_bgr[:, :, ::-1])
         zone_candidates, zone_top1 = self._zone_candidates(pil_image)
         zone_score = zone_top1.score if zone_top1 else 0.0
         zone_id = zone_top1.zone_id if zone_top1 else None
+        LOGGER.info(
+            "stage=zone request_id=%s top1=%s score=%.3f candidates=%d",
+            request_id,
+            zone_id,
+            zone_score,
+            len(zone_candidates),
+        )
 
         detections_raw = self.detector.detect(frame_bgr, conf_thres=self.config.get("tau_det", 0.4))
+        LOGGER.info(
+            "stage=detect request_id=%s detections=%d",
+            request_id,
+            len(detections_raw),
+        )
         track_map = {}
         if session_id:
             track_map = self.tracker.update(session_id, detections_raw)
 
         device_ids = fetch_device_ids()
-        norm_device_ids = {normalize_text(dev_id): dev_id for dev_id in device_ids}
+        norm_device_ids = {}
+        for dev_id in device_ids:
+            key = normalize_text(dev_id)
+            if key:
+                norm_device_ids[key] = dev_id
+                norm_device_ids[key.replace("-", "")] = dev_id
 
         detections: List[DetectionInfo] = []
         best_det_conf = 0.0
@@ -130,6 +154,12 @@ class InferencePipeline:
                 highlight_det_id = det["det_id"]
 
             crop_img, mask = self.segmenter.refine_roi(frame_bgr, bbox)
+            LOGGER.info(
+                "stage=roi request_id=%s det_id=%s mask=%s",
+                request_id,
+                det["det_id"],
+                "yes" if mask is not None else "no",
+            )
             crop_filename = f"{request_id}_{det['det_id']}.png"
             crop_path = _save_image(crop_img, crop_filename)
             mask_path = None
@@ -140,13 +170,26 @@ class InferencePipeline:
             ocr_result = self.ocr.read(crop_img)
             ocr_text = ocr_result.get("text")
             ocr_conf = float(ocr_result.get("conf") or 0.0)
+            LOGGER.info(
+                "stage=ocr request_id=%s det_id=%s conf=%.3f text=%s",
+                request_id,
+                det["det_id"],
+                ocr_conf,
+                ocr_text,
+            )
             ocr_match = False
             ocr_device_id = None
             if ocr_text:
-                norm_text = normalize_text(ocr_text)
-                if norm_text in norm_device_ids:
-                    ocr_match = True
-                    ocr_device_id = norm_device_ids[norm_text]
+                candidate = extract_device_id(ocr_text) or normalize_text(ocr_text)
+                if candidate:
+                    key = normalize_text(candidate)
+                    key_nodash = key.replace("-", "")
+                    if key in norm_device_ids:
+                        ocr_match = True
+                        ocr_device_id = norm_device_ids[key]
+                    elif key_nodash in norm_device_ids:
+                        ocr_match = True
+                        ocr_device_id = norm_device_ids[key_nodash]
 
             if ocr_match and (
                 best_ocr_match is None or ocr_conf > best_ocr_match["conf"]
@@ -158,6 +201,12 @@ class InferencePipeline:
                 reid_data["embedding"], topk=self.config.get("max_device_matches", 5)
             )
             matches = self._filter_device_matches(matches, zone_id)
+            LOGGER.info(
+                "stage=reid request_id=%s det_id=%s matches=%d",
+                request_id,
+                det["det_id"],
+                len(matches),
+            )
             top_matches = [
                 ReIdMatch(device_id=m[0]["device_id"], score=float(m[1])) for m in matches
             ]
@@ -232,6 +281,12 @@ class InferencePipeline:
             reid_match=best_reid_match,
             thresholds=self.config,
             highlight_det_id=highlight_det_id,
+        )
+        LOGGER.info(
+            "stage=policy request_id=%s status=%s action=%s",
+            request_id,
+            decision_payload["status"],
+            decision_payload["action"],
         )
 
         response = InferenceResponse(

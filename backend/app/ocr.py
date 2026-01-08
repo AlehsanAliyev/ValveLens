@@ -5,9 +5,26 @@ import numpy as np
 from PIL import Image
 
 
+DEVICE_ID_PATTERN = re.compile(r"[A-Z]{1,3}-?\d{1,5}")
+
+
 def normalize_text(text: str) -> str:
     text = text.upper().strip()
     return re.sub(r"[^A-Z0-9-]", "", text)
+
+
+def extract_device_id(text: str) -> Optional[str]:
+    if not text:
+        return None
+    match = DEVICE_ID_PATTERN.search(text.upper())
+    if not match:
+        return None
+    candidate = match.group(0)
+    if "-" not in candidate:
+        parts = re.split(r"(\d+)", candidate, maxsplit=1)
+        if len(parts) >= 2:
+            candidate = f"{parts[0]}-{parts[1]}"
+    return candidate
 
 
 def _to_builtin(obj):

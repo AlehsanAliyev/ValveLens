@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import {
+  getDebugStatus,
   inferImage,
   inferVideo,
   inferWebcamFrame,
@@ -21,6 +22,8 @@ export default function Live() {
   const [mediaSize, setMediaSize] = useState(null);
   const [interactionMode, setInteractionMode] = useState("view");
   const [status, setStatus] = useState("");
+  const [debugStatus, setDebugStatus] = useState(null);
+  const [debugError, setDebugError] = useState("");
   const sessionIdRef = useRef(
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
@@ -76,30 +79,77 @@ export default function Live() {
 
   async function handleTapSelect(det) {
     if (!activeResponse) return;
-    await sendFeedback({
+    const res = await sendFeedback({
       obs_id: activeResponse.request_id,
       feedback_type: "tap_select",
       data_json: { det_id: det.det_id, device_id: det.fused.device_id },
     });
+    if (res?.decision) {
+      if (mode === "video") {
+        setResponses((prev) => {
+          const next = [...prev];
+          next[currentIndex] = { ...next[currentIndex], decision: res.decision };
+          return next;
+        });
+      } else {
+        setResponse((prev) => ({ ...prev, decision: res.decision }));
+      }
+    }
   }
 
   async function handleConfirm() {
     if (!activeResponse) return;
-    await sendFeedback({
+    const res = await sendFeedback({
       obs_id: activeResponse.request_id,
       feedback_type: "confirm",
       data_json: { device_id: activeResponse.decision?.selected_device?.device_id },
     });
+    if (res?.decision) {
+      if (mode === "video") {
+        setResponses((prev) => {
+          const next = [...prev];
+          next[currentIndex] = { ...next[currentIndex], decision: res.decision };
+          return next;
+        });
+      } else {
+        setResponse((prev) => ({ ...prev, decision: res.decision }));
+      }
+    }
   }
 
   async function handleReject() {
     if (!activeResponse) return;
-    await sendFeedback({
+    const res = await sendFeedback({
       obs_id: activeResponse.request_id,
       feedback_type: "reject",
       data_json: {},
     });
+    if (res?.decision) {
+      if (mode === "video") {
+        setResponses((prev) => {
+          const next = [...prev];
+          next[currentIndex] = { ...next[currentIndex], decision: res.decision };
+          return next;
+        });
+      } else {
+        setResponse((prev) => ({ ...prev, decision: res.decision }));
+      }
+    }
   }
+
+  async function refreshDebugStatus() {
+    try {
+      const res = await getDebugStatus();
+      setDebugStatus(res);
+      setDebugError("");
+    } catch (err) {
+      setDebugError(err.message);
+    }
+  }
+
+  useEffect(() => {
+    refreshDebugStatus();
+  }, []);
 
   const detections = activeResponse?.detections || [];
 
@@ -155,13 +205,42 @@ export default function Live() {
         {status && <div className="mono" style={{ marginTop: 8 }}>{status}</div>}
       </div>
 
-      <SidePanel
-        response={activeResponse}
-        mode={interactionMode}
-        onModeChange={setInteractionMode}
-        onConfirm={handleConfirm}
-        onReject={handleReject}
-      />
+      <div className="list">
+        <SidePanel
+          response={activeResponse}
+          mode={interactionMode}
+          onModeChange={setInteractionMode}
+          onConfirm={handleConfirm}
+          onReject={handleReject}
+        />
+        <div className="panel">
+          <div className="pill">System Status</div>
+          <div className="controls" style={{ marginTop: 8 }}>
+            <button className="button ghost" onClick={refreshDebugStatus}>
+              Refresh
+            </button>
+          </div>
+          {debugError && (
+            <div className="mono" style={{ marginTop: 8 }}>{debugError}</div>
+          )}
+          {debugStatus && (
+            <div className="list" style={{ marginTop: 10 }}>
+              <div className="mono">
+                zones: {debugStatus.counts?.zones ?? 0} | keyframes:{" "}
+                {debugStatus.counts?.zone_keyframes ?? 0}
+              </div>
+              <div className="mono">
+                devices: {debugStatus.counts?.devices ?? 0} | refs:{" "}
+                {debugStatus.counts?.device_refs ?? 0}
+              </div>
+              <div className="mono">
+                faiss zones: {debugStatus.faiss?.zones ?? 0} | faiss devices:{" "}
+                {debugStatus.faiss?.devices ?? 0}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
