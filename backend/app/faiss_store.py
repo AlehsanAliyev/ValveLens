@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -38,17 +39,25 @@ class FaissIndex:
 
     def load(self) -> None:
         if self.meta_path.exists():
-            self.meta = json.loads(self.meta_path.read_text(encoding="utf-8"))
+            raw = json.loads(self.meta_path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict) and "items" in raw:
+                self.meta = raw.get("items", [])
+            else:
+                self.meta = raw
         if self.emb_path.exists():
             self.embeddings = np.load(self.emb_path)
         if HAS_FAISS and self.index_path.exists():
             self.index = faiss.read_index(str(self.index_path))
 
-    def save(self, embeddings: np.ndarray, meta: List[Dict]) -> None:
+    def save(self, embeddings: np.ndarray, meta: List[Dict], built_at: Optional[str] = None) -> None:
         self.meta = meta
         self.embeddings = embeddings.astype(np.float32)
         np.save(self.emb_path, self.embeddings)
-        self.meta_path.write_text(json.dumps(meta), encoding="utf-8")
+        payload = {
+            "built_at": built_at or datetime.utcnow().isoformat(),
+            "items": meta,
+        }
+        self.meta_path.write_text(json.dumps(payload), encoding="utf-8")
         if HAS_FAISS and len(embeddings) > 0:
             index = faiss.IndexFlatIP(self.dim)
             index.add(embeddings.astype(np.float32))
@@ -78,23 +87,33 @@ class FaissIndex:
 def rebuild_zone_index(dim: int) -> int:
     rows = fetch_zone_keyframes()
     if not rows:
-        FaissIndex("zones", dim).save(np.zeros((0, dim), dtype=np.float32), [])
+        FaissIndex("zones", dim).save(
+            np.zeros((0, dim), dtype=np.float32), [], built_at=datetime.utcnow().isoformat()
+        )
         return 0
     embeddings = []
     meta = []
     for row in rows:
         emb = np.frombuffer(row["embedding"], dtype=np.float32)
         embeddings.append(emb)
-        meta.append({"keyframe_id": row["keyframe_id"], "zone_id": row["zone_id"]})
+        meta.append(
+            {
+                "keyframe_id": row["keyframe_id"],
+                "zone_id": row["zone_id"],
+                "image_path": row["image_path"],
+            }
+        )
     vecs = _normalize(np.vstack(embeddings))
-    FaissIndex("zones", dim).save(vecs, meta)
+    FaissIndex("zones", dim).save(vecs, meta, built_at=datetime.utcnow().isoformat())
     return len(meta)
 
 
 def rebuild_device_index(dim: int) -> int:
     rows = fetch_device_refs()
     if not rows:
-        FaissIndex("devices", dim).save(np.zeros((0, dim), dtype=np.float32), [])
+        FaissIndex("devices", dim).save(
+            np.zeros((0, dim), dtype=np.float32), [], built_at=datetime.utcnow().isoformat()
+        )
         return 0
     embeddings = []
     meta = []
@@ -109,5 +128,15 @@ def rebuild_device_index(dim: int) -> int:
             }
         )
     vecs = _normalize(np.vstack(embeddings))
-    FaissIndex("devices", dim).save(vecs, meta)
+    FaissIndex("devices", dim).save(vecs, meta, built_at=datetime.utcnow().isoformat())
     return len(meta)
+
+
+def get_index_built_at(name: str) -> Optional[str]:
+    path = DATA_DIR / f"{name}_meta.json"
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, dict):
+        return payload.get("built_at")
+    return None

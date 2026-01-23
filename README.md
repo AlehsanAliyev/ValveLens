@@ -73,6 +73,45 @@ Step 1, zones. Define 3 to 5 zones such as desk, kitchen, hallway, doorway. Capt
 
 Step 2, devices. Use household objects like knobs or switches, or print images of valves and gauges. Attach simple tags like V-1023 or PG-45. Capture 2 to 10 reference images per device. This is enough to show ambiguity, zone priors, and uncertainty-driven interaction.
 
+## Option B (Dataset-only) Quickstart
+
+If you do not want to use home photos, you can build zones purely from public datasets. ValveLens supports NYC-Indoor-VPR, OpenLORIS-Location, and an optional small subset of COLD. Dataset downloads are stored under `data_sources/` and only the embeddings and sqlite live under `backend/data/`.
+
+Step 1, download datasets:
+
+```powershell
+cd d:\python_works\ValveLens
+.\scripts\download_datasets.ps1 -DownloadNYCIndoorVPR
+.\scripts\download_datasets.ps1 -DownloadOpenLORISLocation
+```
+
+If any download fails with auth, place the archive manually in `data_sources\downloads` and extract it to `data_sources\extracted`.
+
+Optional COLD subset download:
+
+```powershell
+cd d:\python_works\ValveLens\backend
+python -m app.cli.download_cold_subset --max_sequences 2
+```
+
+Step 2, import zones and build the FAISS index:
+
+```powershell
+cd d:\python_works\ValveLens\backend
+python -m app.cli.import_zones_from_datasets --dataset nyc_indoor_vpr --root ..\data_sources\extracted\nyc_indoor_vpr --max_per_zone 300 --rebuild
+python -m app.cli.import_zones_from_datasets --dataset openloris_location --root ..\data_sources\extracted\openloris_location --max_per_zone 50 --rebuild
+```
+
+Step 3, verify system status:
+
+```powershell
+curl http://localhost:8000/debug/status
+```
+
+You should see non-zero `zones_count`, `zone_keyframes_count`, and `zone_faiss_size`.
+
+Step 4, run the Live UI and confirm zone candidates appear.
+
 ## CLI tools
 
 Initialize database:

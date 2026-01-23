@@ -126,6 +126,22 @@ def create_zone(name: str, description: str) -> str:
     return zone_id
 
 
+def get_zone_by_name(name: str) -> Optional[Dict[str, Any]]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM zones WHERE name = ?", (name,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def zone_keyframe_exists(image_path: str) -> bool:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT 1 FROM zone_keyframes WHERE image_path = ?", (image_path,)
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
 def add_zone_keyframe(
     zone_id: str, image_path: str, embedding_type: str, embedding: bytes
 ) -> str:
