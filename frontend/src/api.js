@@ -18,9 +18,12 @@ export async function inferImage(file) {
   return handleResponse(res);
 }
 
-export async function inferVideo(file) {
+export async function inferVideo(file, sessionId) {
   const form = new FormData();
   form.append("file", file);
+  if (sessionId) {
+    form.append("session_id", sessionId);
+  }
   const res = await fetch(`${API_BASE}/infer/video`, {
     method: "POST",
     body: form,

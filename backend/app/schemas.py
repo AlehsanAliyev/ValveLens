@@ -24,11 +24,13 @@ class QualityInfo(StrictBase):
 
 class ZoneCandidate(StrictBase):
     zone_id: str
+    zone_name: Optional[str] = None
     score: float
 
 
 class ZoneTop1(StrictBase):
     zone_id: str
+    zone_name: Optional[str] = None
     score: float
 
 

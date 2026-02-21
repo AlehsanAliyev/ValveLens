@@ -68,7 +68,11 @@ export default function Live() {
 
   async function handleVideo(file) {
     try {
-      const res = await inferVideo(file);
+      const videoSessionId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `video-${Date.now()}`;
+      const res = await inferVideo(file, videoSessionId);
       setResponses(res);
       setCurrentIndex(0);
       setStatus("");

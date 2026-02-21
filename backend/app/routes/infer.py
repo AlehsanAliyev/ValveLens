@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, File, UploadFile, Request
+from fastapi import APIRouter, File, Form, Request, UploadFile
 from pydantic import BaseModel
 from PIL import Image
 
@@ -61,8 +61,12 @@ async def infer_image(request: Request, file: UploadFile = File(...)) -> Inferen
 
 
 @router.post("/infer/video", response_model=List[InferenceResponse])
-async def infer_video(request: Request, file: UploadFile = File(...)) -> List[InferenceResponse]:
-    session_id = str(uuid4())
+async def infer_video(
+    request: Request,
+    file: UploadFile = File(...),
+    session_id: str | None = Form(default=None),
+) -> List[InferenceResponse]:
+    session_id = session_id or str(uuid4())
     filename = file.filename or f"{session_id}.mp4"
     temp_path = UPLOAD_DIR / f"{session_id}_{filename}"
     temp_path.write_bytes(await file.read())
@@ -79,7 +83,7 @@ async def infer_video(request: Request, file: UploadFile = File(...)) -> List[In
             response = request.app.state.pipeline.process_frame(
                 frame,
                 input_type="video",
-                source=filename,
+                source=session_id,
                 frame_index=frame_index,
                 session_id=session_id,
             )

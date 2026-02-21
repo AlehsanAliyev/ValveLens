@@ -15,6 +15,7 @@ class FeedbackRequest(BaseModel):
     obs_id: str
     feedback_type: str
     data_json: Dict
+    session_id: Optional[str] = None
 
 
 def _apply_tap_select(
@@ -44,12 +45,37 @@ def _apply_tap_select(
     return payload_json
 
 
+def _resolve_session_id(
+    observation: Optional[Dict], explicit_session_id: Optional[str]
+) -> Optional[str]:
+    if explicit_session_id:
+        return explicit_session_id
+    if not observation:
+        return None
+    if observation.get("source_name"):
+        return str(observation["source_name"])
+    payload = observation.get("payload_json")
+    if payload:
+        try:
+            parsed = json.loads(payload)
+            input_obj = parsed.get("input") or {}
+            source = input_obj.get("source")
+            if source:
+                return str(source)
+        except Exception:
+            return None
+    return None
+
+
 @router.post("/feedback")
 def feedback(payload: FeedbackRequest) -> dict:
-    fb_id = db.insert_feedback(payload.obs_id, payload.feedback_type, payload.data_json)
+    observation = db.fetch_observation(payload.obs_id)
+    session_id = _resolve_session_id(observation, payload.session_id)
+    fb_id = db.insert_feedback(
+        payload.obs_id, payload.feedback_type, payload.data_json, session_id=session_id
+    )
 
     if payload.feedback_type == "tap_select":
-        observation = db.fetch_observation(payload.obs_id)
         if not observation:
             return {"feedback_id": fb_id, "error": "observation_not_found"}
         det_id = payload.data_json.get("det_id")
@@ -68,7 +94,6 @@ def feedback(payload: FeedbackRequest) -> dict:
         return {"feedback_id": fb_id, "decision": updated_payload["decision"]}
 
     if payload.feedback_type == "confirm":
-        observation = db.fetch_observation(payload.obs_id)
         if observation:
             payload_json = json.loads(observation["payload_json"])
             selected = payload_json["decision"].get("selected_device")
@@ -88,7 +113,6 @@ def feedback(payload: FeedbackRequest) -> dict:
                 return {"feedback_id": fb_id, "decision": payload_json["decision"]}
 
     if payload.feedback_type == "reject":
-        observation = db.fetch_observation(payload.obs_id)
         if observation:
             payload_json = json.loads(observation["payload_json"])
             payload_json["decision"]["status"] = "UNCERTAIN"

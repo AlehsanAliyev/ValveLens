@@ -31,6 +31,19 @@ def get_conn() -> sqlite3.Connection:
     return conn
 
 
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return {str(row["name"]) for row in rows}
+
+
+def _ensure_column(
+    conn: sqlite3.Connection, table: str, column: str, definition_sql: str
+) -> None:
+    columns = _table_columns(conn, table)
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition_sql}")
+
+
 def init_db() -> None:
     conn = get_conn()
     cur = conn.cursor()
@@ -104,12 +117,14 @@ def init_db() -> None:
             fb_id TEXT PRIMARY KEY,
             created_at TEXT,
             obs_id TEXT,
+            session_id TEXT,
             feedback_type TEXT,
             data_json TEXT,
             FOREIGN KEY(obs_id) REFERENCES observations(obs_id)
         )
         """
     )
+    _ensure_column(conn, "feedback", "session_id", "TEXT")
     conn.commit()
     conn.close()
 
@@ -131,6 +146,13 @@ def get_zone_by_name(name: str) -> Optional[Dict[str, Any]]:
     row = conn.execute("SELECT * FROM zones WHERE name = ?", (name,)).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def fetch_zone_name_map() -> Dict[str, str]:
+    conn = get_conn()
+    rows = conn.execute("SELECT zone_id, name FROM zones").fetchall()
+    conn.close()
+    return {row["zone_id"]: row["name"] for row in rows}
 
 
 def zone_keyframe_exists(image_path: str) -> bool:
@@ -220,16 +242,21 @@ def insert_observation(payload: Dict[str, Any]) -> None:
     conn.close()
 
 
-def insert_feedback(obs_id: str, feedback_type: str, data_json: Dict[str, Any]) -> str:
+def insert_feedback(
+    obs_id: str,
+    feedback_type: str,
+    data_json: Dict[str, Any],
+    session_id: Optional[str] = None,
+) -> str:
     fb_id = str(uuid4())
     conn = get_conn()
     conn.execute(
         """
         INSERT INTO feedback
-        (fb_id, created_at, obs_id, feedback_type, data_json)
-        VALUES (?, ?, ?, ?, ?)
+        (fb_id, created_at, obs_id, session_id, feedback_type, data_json)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (fb_id, _utc_now(), obs_id, feedback_type, json.dumps(data_json)),
+        (fb_id, _utc_now(), obs_id, session_id, feedback_type, json.dumps(data_json)),
     )
     conn.commit()
     conn.close()
@@ -283,6 +310,20 @@ def fetch_counts() -> Dict[str, int]:
     return counts
 
 
+def count_zones() -> int:
+    conn = get_conn()
+    row = conn.execute("SELECT COUNT(*) AS c FROM zones").fetchone()
+    conn.close()
+    return int(row["c"]) if row else 0
+
+
+def count_zone_keyframes() -> int:
+    conn = get_conn()
+    row = conn.execute("SELECT COUNT(*) AS c FROM zone_keyframes").fetchone()
+    conn.close()
+    return int(row["c"]) if row else 0
+
+
 def fetch_observation(obs_id: str) -> Optional[Dict[str, Any]]:
     conn = get_conn()
     row = conn.execute(
@@ -316,3 +357,29 @@ def update_observation(
     )
     conn.commit()
     conn.close()
+
+
+def fetch_observations() -> List[Dict[str, Any]]:
+    conn = get_conn()
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM observations
+        ORDER BY datetime(created_at) ASC, created_at ASC
+        """
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def fetch_feedback_rows() -> List[Dict[str, Any]]:
+    conn = get_conn()
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM feedback
+        ORDER BY datetime(created_at) ASC, created_at ASC
+        """
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]

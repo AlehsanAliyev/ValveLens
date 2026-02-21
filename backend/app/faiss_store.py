@@ -36,6 +36,8 @@ class FaissIndex:
         self.index = None
         self.meta: List[Dict] = []
         self.embeddings: Optional[np.ndarray] = None
+        self._meta_mtime: Optional[float] = None
+        self._index_mtime: Optional[float] = None
 
     def load(self) -> None:
         if self.meta_path.exists():
@@ -44,10 +46,25 @@ class FaissIndex:
                 self.meta = raw.get("items", [])
             else:
                 self.meta = raw
+            self._meta_mtime = self.meta_path.stat().st_mtime
         if self.emb_path.exists():
             self.embeddings = np.load(self.emb_path)
         if HAS_FAISS and self.index_path.exists():
             self.index = faiss.read_index(str(self.index_path))
+            self._index_mtime = self.index_path.stat().st_mtime
+
+    def _is_stale(self) -> bool:
+        if self.meta_path.exists():
+            if self._meta_mtime is None:
+                return True
+            if self.meta_path.stat().st_mtime > self._meta_mtime:
+                return True
+        if HAS_FAISS and self.index_path.exists():
+            if self._index_mtime is None:
+                return True
+            if self.index_path.stat().st_mtime > self._index_mtime:
+                return True
+        return False
 
     def save(self, embeddings: np.ndarray, meta: List[Dict], built_at: Optional[str] = None) -> None:
         self.meta = meta
@@ -58,14 +75,18 @@ class FaissIndex:
             "items": meta,
         }
         self.meta_path.write_text(json.dumps(payload), encoding="utf-8")
+        self._meta_mtime = self.meta_path.stat().st_mtime
         if HAS_FAISS and len(embeddings) > 0:
             index = faiss.IndexFlatIP(self.dim)
             index.add(embeddings.astype(np.float32))
             faiss.write_index(index, str(self.index_path))
             self.index = index
+            self._index_mtime = self.index_path.stat().st_mtime
 
     def search(self, query: np.ndarray, topk: int = 5) -> List[Tuple[Dict, float]]:
         if self.index is None and self.embeddings is None:
+            self.load()
+        elif self._is_stale():
             self.load()
         if self.embeddings is None or len(self.embeddings) == 0:
             return []
@@ -98,6 +119,7 @@ def rebuild_zone_index(dim: int) -> int:
         embeddings.append(emb)
         meta.append(
             {
+                "vector_id": len(meta),
                 "keyframe_id": row["keyframe_id"],
                 "zone_id": row["zone_id"],
                 "image_path": row["image_path"],
@@ -122,9 +144,11 @@ def rebuild_device_index(dim: int) -> int:
         embeddings.append(emb)
         meta.append(
             {
+                "vector_id": len(meta),
                 "ref_id": row["ref_id"],
                 "device_id": row["device_id"],
                 "zone_id": row.get("zone_id"),
+                "image_path": row.get("image_path"),
             }
         )
     vecs = _normalize(np.vstack(embeddings))

@@ -1,11 +1,15 @@
 import re
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 import numpy as np
 from PIL import Image
 
 
-DEVICE_ID_PATTERN = re.compile(r"[A-Z]{1,3}-?\d{1,5}")
+_DEVICE_ID_PATTERNS = [
+    re.compile(r"\bV-?\d{2,6}\b", re.IGNORECASE),
+    re.compile(r"\bPG-?\d{2,6}\b", re.IGNORECASE),
+    re.compile(r"\b[A-Z]{1,3}-?\d{2,6}\b", re.IGNORECASE),
+]
 
 
 def normalize_text(text: str) -> str:
@@ -13,18 +17,54 @@ def normalize_text(text: str) -> str:
     return re.sub(r"[^A-Z0-9-]", "", text)
 
 
-def extract_device_id(text: str) -> Optional[str]:
-    if not text:
-        return None
-    match = DEVICE_ID_PATTERN.search(text.upper())
-    if not match:
-        return None
-    candidate = match.group(0)
-    if "-" not in candidate:
-        parts = re.split(r"(\d+)", candidate, maxsplit=1)
-        if len(parts) >= 2:
-            candidate = f"{parts[0]}-{parts[1]}"
+def _canonicalize_device_id(candidate: str) -> str:
+    candidate = normalize_text(candidate)
+    if "-" in candidate:
+        return candidate
+    parts = re.split(r"(\d+)", candidate, maxsplit=1)
+    if len(parts) >= 2 and parts[0] and parts[1]:
+        return f"{parts[0]}-{parts[1]}"
     return candidate
+
+
+def extract_device_ids(text: str) -> List[str]:
+    if not text:
+        return []
+    found: List[str] = []
+    seen = set()
+    for pattern in _DEVICE_ID_PATTERNS:
+        for match in pattern.finditer(text):
+            device_id = _canonicalize_device_id(match.group(0))
+            if device_id not in seen:
+                seen.add(device_id)
+                found.append(device_id)
+    return found
+
+
+def extract_device_id(text: str) -> Optional[str]:
+    ids = extract_device_ids(text)
+    return ids[0] if ids else None
+
+
+def match_enrolled_device_id(text: str, enrolled_device_ids: Iterable[str]) -> Optional[str]:
+    candidates = extract_device_ids(text)
+    if not candidates:
+        return None
+    enrolled_map: Dict[str, str] = {}
+    for raw in enrolled_device_ids:
+        normalized = normalize_text(raw)
+        if not normalized:
+            continue
+        enrolled_map[normalized] = raw
+        enrolled_map[normalized.replace("-", "")] = raw
+    for candidate in candidates:
+        norm = normalize_text(candidate)
+        if norm in enrolled_map:
+            return enrolled_map[norm]
+        nodash = norm.replace("-", "")
+        if nodash in enrolled_map:
+            return enrolled_map[nodash]
+    return None
 
 
 def _to_builtin(obj):

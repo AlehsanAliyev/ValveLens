@@ -4,5 +4,10 @@ frontend/dist/
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+.mypy_cache/
 data_sources/downloads/
 data_sources/extracted/
+backend/yolov8n.pt
+ValveLens_Thesis_Draft.docx
+backend/results.json

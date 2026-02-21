@@ -112,6 +112,47 @@ You should see non-zero `zones_count`, `zone_keyframes_count`, and `zone_faiss_s
 
 Step 4, run the Live UI and confirm zone candidates appear.
 
+## OpenLORIS Zones Quickstart (Dataset-only)
+
+This flow uses only OpenLORIS extracted folders under `data_sources\extracted` and ignores `indoor_anony`.
+
+1) Initialize DB:
+
+```powershell
+cd d:\python_works\ValveLens\backend
+python -m app.cli.init_db
+```
+
+2) Import OpenLORIS zones and rebuild:
+
+```powershell
+python -m app.cli.import_openloris_zones --root "D:\PYTHON_WORKS\VALVELENS\DATA_SOURCES\EXTRACTED" --max_per_zone 300 --rebuild
+```
+
+Zone naming rule:
+- `corridor\000` -> `OpenLORIS_corridor_000`
+- `corridor\corridor-3` -> `OpenLORIS_corridor_corridor-3`
+- `office\001` -> `OpenLORIS_office_001`
+- `office\office-2` -> `OpenLORIS_office_office-2`
+- `station\008` -> `OpenLORIS_station_008`
+
+3) Verify status:
+
+```powershell
+curl http://localhost:8000/debug/status
+```
+
+You should see non-zero `zones_count`, `zone_keyframes_count`, and `zone_faiss_size`.
+
+4) Smoke test:
+
+```powershell
+python -m app.cli.smoke_zones --image "D:\PYTHON_WORKS\VALVELENS\DATA_SOURCES\EXTRACTED\corridor\000\000.png" --topk 5
+python -m app.cli.smoke_zones_aggregate --image "D:\PYTHON_WORKS\VALVELENS\DATA_SOURCES\EXTRACTED\corridor\000\000.png" --topk 5
+```
+
+Expected: top candidate should usually be `OpenLORIS_corridor_000` (or the matching source folder).
+
 ## CLI tools
 
 Initialize database:
@@ -157,10 +198,28 @@ Rebuild device index:
 python -m app.cli.rebuild_device_index
 ```
 
+Smoke test device ReID:
+
+```powershell
+python -m app.cli.smoke_reid --image "D:\data\devices\V-1023\sample.jpg" --topk 5
+```
+
 Batch inference on video:
 
 ```powershell
 python -m app.cli.run_video --video D:\data\videos\demo.mp4 --out results.json
+```
+
+Export experiment metrics:
+
+```powershell
+python -m app.cli.export_metrics --out backend\data\metrics.csv
+```
+
+Summarize metrics:
+
+```powershell
+python -m app.cli.summarize_metrics --in backend\data\metrics.csv
 ```
 
 Smoke test (requires a sample image):
@@ -263,6 +322,15 @@ If FAISS size is 0, rebuild the index after adding data. The index is not auto b
 
 If the frontend does not update after tap select, check the `/feedback` response in the browser devtools. The response should include a `decision` object for tap_select, confirm, and reject.
 
+If you want wrong-device metrics with ground truth, add `backend\data\gt_sessions.json` with this shape:
+
+```json
+{
+  "session-abc-123": "V-1023",
+  "session-xyz-789": "PG-45"
+}
+```
+
 ## Configuration
 
 Edit backend/app/config.yaml:
@@ -279,6 +347,11 @@ frame_stride: 5
 ```
 
 These thresholds control when the system accepts and when it asks.
+
+Policy order for identity resolution is OCR first, then ReID:
+1. If OCR confidence is at least `tau_ocr` and the parsed OCR ID matches an enrolled `device_id`, the decision is `ACCEPTED` with that OCR ID.
+2. Otherwise the pipeline evaluates ReID top matches and accepts only if score and gap thresholds pass.
+3. If neither passes, the decision is `UNCERTAIN` with `ASK_TAP`.
 
 ## Model dependencies
 
