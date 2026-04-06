@@ -12,3 +12,5 @@ backend/yolov8n.pt
 ValveLens_Thesis_Draft.docx
 backend/results.json
 data/
+models/
+runs/
