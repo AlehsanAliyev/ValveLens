@@ -1,0 +1,8 @@
+path: D:/python_works/ValveLens/data/detection/combined
+train: train/images
+val: valid/images
+test: test/images
+nc: 2
+names:
+  0: valve
+  1: gauge

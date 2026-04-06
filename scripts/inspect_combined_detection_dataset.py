@@ -16,6 +16,7 @@ DATASET_ROOT = REPO_ROOT / "data" / "detection" / "combined"
 DATA_YAML = DATASET_ROOT / "data.yaml"
 SPLITS = ("train", "valid", "test")
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+TOL = 1e-6
 
 
 def load_config(path: Path) -> Dict:
@@ -79,7 +80,7 @@ def inspect_label_file(label_path: Path) -> Dict:
             summary["invalid_boxes"].append({"line_no": line_no, "reason": "non-positive area", "line": line})
             continue
 
-        if not all(0.0 <= value <= 1.0 for value in coords):
+        if not all(-TOL <= value <= 1.0 + TOL for value in coords):
             summary["invalid_boxes"].append({"line_no": line_no, "reason": "coordinate outside [0,1]", "line": line})
             continue
 
@@ -87,7 +88,7 @@ def inspect_label_file(label_path: Path) -> Dict:
         y1 = y_center - height / 2.0
         x2 = x_center + width / 2.0
         y2 = y_center + height / 2.0
-        if x1 < 0.0 or y1 < 0.0 or x2 > 1.0 or y2 > 1.0:
+        if x1 < -TOL or y1 < -TOL or x2 > 1.0 + TOL or y2 > 1.0 + TOL:
             summary["invalid_boxes"].append({"line_no": line_no, "reason": "box extends outside image", "line": line})
             continue
 

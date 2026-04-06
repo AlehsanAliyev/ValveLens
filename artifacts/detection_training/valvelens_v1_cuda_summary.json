@@ -1,0 +1,24 @@
+{
+  "dataset_yaml": "D:\\python_works\\ValveLens\\artifacts\\detection_training\\combined_ultralytics.yaml",
+  "train_save_dir": "runs\\detect\\valvelens_v1_cuda3",
+  "best_weights": "runs\\detect\\valvelens_v1_cuda3\\weights\\best.pt",
+  "predict_dir": "runs\\detect\\valvelens_v1_cuda_predict",
+  "validation": {
+    "results_dict": {
+      "metrics/precision(B)": 0.9333239913076609,
+      "metrics/recall(B)": 0.7492270531400966,
+      "metrics/mAP50(B)": 0.8416938154625813,
+      "metrics/mAP50-95(B)": 0.5335678328143765,
+      "fitness": 0.564380431079197
+    },
+    "precision": 0.9333239913076609,
+    "recall": 0.7492270531400966,
+    "map50": 0.8416938154625813,
+    "map50_95": 0.5335678328143765,
+    "per_class_maps": [
+      0.6407709034795184,
+      0.4263647621492347
+    ]
+  },
+  "copied_detector": "D:\\python_works\\ValveLens\\models\\detector.pt"
+}

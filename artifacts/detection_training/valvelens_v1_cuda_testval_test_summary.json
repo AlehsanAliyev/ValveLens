@@ -1,0 +1,20 @@
+{
+  "weights": "D:\\python_works\\ValveLens\\runs\\detect\\valvelens_v1_cuda3\\weights\\best.pt",
+  "data": "D:\\python_works\\ValveLens\\artifacts\\detection_training\\combined_ultralytics.yaml",
+  "split": "test",
+  "precision": 0.913806758019261,
+  "recall": 0.7901959287122219,
+  "map50": 0.8702209455074935,
+  "map50_95": 0.5629324312190228,
+  "per_class_maps": [
+    0.6752332136494654,
+    0.45063164878858036
+  ],
+  "results_dict": {
+    "metrics/precision(B)": 0.913806758019261,
+    "metrics/recall(B)": 0.7901959287122219,
+    "metrics/mAP50(B)": 0.8702209455074935,
+    "metrics/mAP50-95(B)": 0.5629324312190228,
+    "fitness": 0.5936612826478699
+  }
+}

@@ -364,6 +364,7 @@ def _copy_and_rewrite_dataset(
 
 def _write_final_yaml() -> None:
     yaml_text = (
+        "path: .\n"
         "train: train/images\n"
         "val: valid/images\n"
         "test: test/images\n\n"
