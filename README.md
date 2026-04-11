@@ -27,6 +27,15 @@ Backend: a FastAPI service with a modular inference pipeline, FAISS plus sqlite 
 
 Frontend: a React (Vite) web interface with live webcam inference, video and image uploads, visual overlays, side-panel decisions, and click or tap based correction.
 
+## Project status and timeline
+
+If you want one place that tracks what ValveLens currently does, what was already tested, and what the next stage is, use these docs first:
+
+- `docs/PROJECT_STATUS.md` for the current project state, milestone timeline, tested paths, and known gaps
+- `docs/NEXT_STAGE_V03.md` for the exact runbook to move from the current zone-aware system into an identity-aware assistant
+
+Recommended habit: update `docs/PROJECT_STATUS.md` after each meaningful milestone so the repo stays navigable as the project grows.
+
 ## Project structure
 
 ```
