@@ -383,3 +383,30 @@ def fetch_feedback_rows() -> List[Dict[str, Any]]:
     ).fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+def fetch_latest_session_feedback_device(session_id: str) -> Optional[Dict[str, Any]]:
+    conn = get_conn()
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM feedback
+        WHERE session_id = ?
+          AND feedback_type IN ('tap_select', 'confirm')
+        ORDER BY datetime(created_at) DESC, created_at DESC
+        """,
+        (session_id,),
+    ).fetchall()
+    conn.close()
+
+    for row in rows:
+        item = dict(row)
+        try:
+            data = json.loads(item.get("data_json") or "{}")
+        except Exception:
+            continue
+        device_id = data.get("device_id")
+        if device_id:
+            item["data_json"] = data
+            return item
+    return None

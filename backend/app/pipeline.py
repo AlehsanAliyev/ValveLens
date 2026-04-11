@@ -9,7 +9,7 @@ import numpy as np
 import yaml
 from PIL import Image
 
-from app.db import fetch_device_ids
+from app.db import fetch_device_ids, fetch_latest_session_feedback_device
 from app.detector import Detector
 from app.embeddings import Embedder
 from app.faiss_store import FaissIndex
@@ -165,6 +165,28 @@ class InferencePipeline:
         best_ocr_match = None
         best_reid_match = None
         best_fused_score = -1.0
+        session_device_id = None
+        session_feedback_type = None
+        if session_id:
+            latest_feedback = fetch_latest_session_feedback_device(session_id)
+            if latest_feedback:
+                feedback_data = latest_feedback.get("data_json") or {}
+                if isinstance(feedback_data, str):
+                    try:
+                        feedback_data = json.loads(feedback_data)
+                    except Exception:
+                        feedback_data = {}
+                session_device_id = feedback_data.get("device_id")
+                session_feedback_type = latest_feedback.get("feedback_type")
+                if session_device_id:
+                    LOGGER.info(
+                        "stage=session_hint request_id=%s session_id=%s device_id=%s feedback_type=%s",
+                        request_id,
+                        session_id,
+                        session_device_id,
+                        session_feedback_type,
+                    )
+        best_session_match: Optional[Dict[str, object]] = None
 
         for det in detections_raw:
             bbox = det["bbox"]
@@ -278,6 +300,13 @@ class InferencePipeline:
                 }
 
             gap_small = reid_gap < self.config["tau_gap"] if top_matches else False
+            session_prior_match = False
+            if session_device_id:
+                top_match_ids = {match.device_id for match in top_matches}
+                if ocr_device_id == session_device_id or session_device_id in top_match_ids:
+                    session_prior_match = True
+                    if not candidate_device_id:
+                        candidate_device_id = session_device_id
             fused_score, breakdown = fuse_scores(
                 zone_score=zone_score,
                 det_conf=smoothed_det_conf,
@@ -285,18 +314,32 @@ class InferencePipeline:
                 ocr_conf=smoothed_ocr_conf,
                 ocr_match=ocr_match,
                 gap_small=gap_small,
+                session_prior_match=session_prior_match,
             )
             breakdown["track_stability"] = track_stability
             breakdown["det_conf_raw"] = det_conf
             breakdown["ocr_conf_raw"] = ocr_conf
             breakdown["reid_top1_raw"] = reid_top1
+            if session_device_id:
+                breakdown["session_device_id"] = session_device_id
+                breakdown["session_prior_match"] = session_prior_match
 
             fused_device_id = str(smoothed_selected_device_id) if smoothed_selected_device_id else None
+            if session_prior_match and session_device_id:
+                fused_device_id = session_device_id
 
             if fused_score > best_fused_score:
                 best_fused_score = fused_score
                 if fused_device_id:
                     highlight_det_id = det["det_id"]
+            if session_prior_match and session_device_id:
+                current_session_match = {
+                    "device_id": session_device_id,
+                    "det_id": det["det_id"],
+                    "score": fused_score,
+                }
+                if best_session_match is None or float(current_session_match["score"]) > float(best_session_match["score"]):
+                    best_session_match = current_session_match
 
             detections.append(
                 DetectionInfo(
@@ -331,6 +374,28 @@ class InferencePipeline:
             thresholds=self.config,
             highlight_det_id=highlight_det_id,
         )
+        if (
+            decision_payload["status"] == "UNCERTAIN"
+            and session_feedback_type == "confirm"
+            and session_device_id
+            and best_session_match
+            and zone_top1 is not None
+            and zone_top1.score >= self.config["tau_zone"]
+            and not quality["is_blurry"]
+            and not quality["is_low_light"]
+            and best_det_conf >= self.config["tau_det"]
+            and float(best_session_match["score"]) >= 0.60
+        ):
+            decision_payload = {
+                "status": "ACCEPTED",
+                "selected_device": {
+                    "device_id": session_device_id,
+                    "score": float(best_session_match["score"]),
+                },
+                "action": "NONE",
+                "message": f"Maintaining confirmed session device {session_device_id}.",
+                "ui_hints": {"highlight_det_id": best_session_match["det_id"]},
+            }
         LOGGER.info(
             "stage=policy request_id=%s status=%s action=%s",
             request_id,

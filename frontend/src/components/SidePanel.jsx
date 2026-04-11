@@ -42,9 +42,14 @@ export default function SidePanel({
           <div style={{ marginTop: 6 }}>
             {decision ? decision.message : "Awaiting inference..."}
           </div>
+          {decision?.selected_device && (
+            <div className="mono" style={{ marginTop: 8 }}>
+              selected: {decision.selected_device.device_id} ({(decision.selected_device.score * 100).toFixed(0)}%)
+            </div>
+          )}
         </div>
         <div>
-          <div className="pill">Detections OCR</div>
+          <div className="pill">Identity Evidence</div>
           <div className="list" style={{ marginTop: 8 }}>
             {detections.length === 0 && (
               <div className="mono">No detections yet</div>
@@ -54,9 +59,23 @@ export default function SidePanel({
               const conf = typeof det.ocr?.conf === "number"
                 ? ` (${(det.ocr.conf * 100).toFixed(0)}%)`
                 : "";
+              const topMatches = det.reid?.top_matches?.slice(0, 3) || [];
+              const fusedDevice = det.fused?.device_id;
+              const fusedScore = typeof det.fused?.final_score === "number"
+                ? ` (${(det.fused.final_score * 100).toFixed(0)}%)`
+                : "";
               return (
                 <div key={det.det_id} className="mono">
-                  {det.cls}: {hasOcr ? `${det.ocr.text}${conf}` : "OCR none"}
+                  <div>{det.cls} {det.track_id ? `track ${det.track_id}` : ""}</div>
+                  <div>ocr: {hasOcr ? `${det.ocr.text}${conf}` : "none"}</div>
+                  <div>
+                    reid: {topMatches.length
+                      ? topMatches
+                          .map((m) => `${m.device_id} ${(m.score * 100).toFixed(0)}%`)
+                          .join(" | ")
+                      : "none"}
+                  </div>
+                  <div>fused: {fusedDevice ? `${fusedDevice}${fusedScore}` : "none"}</div>
                 </div>
               );
             })}

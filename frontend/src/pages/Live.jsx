@@ -29,6 +29,7 @@ export default function Live() {
       ? crypto.randomUUID()
       : `session-${Date.now()}`
   );
+  const videoSessionIdRef = useRef(null);
   const inFlightRef = useRef(false);
 
   const activeResponse = useMemo(() => {
@@ -72,6 +73,7 @@ export default function Live() {
         typeof crypto !== "undefined" && crypto.randomUUID
           ? crypto.randomUUID()
           : `video-${Date.now()}`;
+      videoSessionIdRef.current = videoSessionId;
       const res = await inferVideo(file, videoSessionId);
       setResponses(res);
       setCurrentIndex(0);
@@ -83,10 +85,17 @@ export default function Live() {
 
   async function handleTapSelect(det) {
     if (!activeResponse) return;
+    const activeSessionId =
+      mode === "webcam"
+        ? sessionIdRef.current
+        : mode === "video"
+          ? videoSessionIdRef.current
+          : null;
     const res = await sendFeedback({
       obs_id: activeResponse.request_id,
       feedback_type: "tap_select",
       data_json: { det_id: det.det_id, device_id: det.fused.device_id },
+      session_id: activeSessionId,
     });
     if (res?.decision) {
       if (mode === "video") {
@@ -103,10 +112,17 @@ export default function Live() {
 
   async function handleConfirm() {
     if (!activeResponse) return;
+    const activeSessionId =
+      mode === "webcam"
+        ? sessionIdRef.current
+        : mode === "video"
+          ? videoSessionIdRef.current
+          : null;
     const res = await sendFeedback({
       obs_id: activeResponse.request_id,
       feedback_type: "confirm",
       data_json: { device_id: activeResponse.decision?.selected_device?.device_id },
+      session_id: activeSessionId,
     });
     if (res?.decision) {
       if (mode === "video") {
@@ -123,10 +139,17 @@ export default function Live() {
 
   async function handleReject() {
     if (!activeResponse) return;
+    const activeSessionId =
+      mode === "webcam"
+        ? sessionIdRef.current
+        : mode === "video"
+          ? videoSessionIdRef.current
+          : null;
     const res = await sendFeedback({
       obs_id: activeResponse.request_id,
       feedback_type: "reject",
       data_json: {},
+      session_id: activeSessionId,
     });
     if (res?.decision) {
       if (mode === "video") {

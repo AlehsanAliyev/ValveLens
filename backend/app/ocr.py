@@ -113,7 +113,10 @@ class OCRReader:
             return {"text": best[1], "conf": float(best[2]), "boxes": boxes}
 
         if self.backend == "tesseract":
-            data = self.reader.image_to_data(image, output_type="dict")
+            try:
+                data = self.reader.image_to_data(image, output_type="dict")
+            except Exception:
+                return {"text": None, "conf": None, "boxes": []}
             texts: List[str] = []
             confs: List[float] = []
             boxes: List[List[int]] = []
