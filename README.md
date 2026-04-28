@@ -33,6 +33,7 @@ If you want one place that tracks what ValveLens currently does, what was alread
 
 - `docs/PROJECT_STATUS.md` for the current project state, milestone timeline, tested paths, and known gaps
 - `docs/NEXT_STAGE_V03.md` for the exact runbook to move from the current zone-aware system into an identity-aware assistant
+- `docs/AGENT_CONTEXT_PACK.md` for a compact handoff note that summarizes the project identity, architecture, current stage, and next development direction
 
 Recommended habit: update `docs/PROJECT_STATUS.md` after each meaningful milestone so the repo stays navigable as the project grows.
 
