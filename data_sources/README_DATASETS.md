@@ -19,6 +19,7 @@ The current workspace has these source archives in `data_sources/downloads/`:
 - `station.zip`
 - `Valve Detection.v1i.yolov8.zip`
 - `Valve Detection.v6i.yolov8.zip`
+- ExDARK files under `exdark/`
 
 The matching extracted folders are:
 
@@ -28,6 +29,7 @@ The matching extracted folders are:
 - `station`
 - `valve_detection_v1i_yolov8`
 - `valve_detection_v6i_yolov8`
+- `exdark`
 
 ## Zone Data
 
@@ -76,6 +78,39 @@ The extracted folders are:
 
 - `data_sources/extracted/valve_detection_v1i_yolov8`
 - `data_sources/extracted/valve_detection_v6i_yolov8`
+
+Source metadata from the extracted `data.yaml` files:
+
+`Valve Detection.v1i.yolov8.zip`
+- Roboflow workspace: `valve-robotics-computer-vision`
+- Roboflow project: `valve-detection-xcwdr`
+- Version: `1`
+- License: `CC BY 4.0`
+- Original classes:
+  - `Lever Handle Butterfly Valve`
+  - `Lever Handle Valve Flanged`
+  - `Lever Handle Valve Threaded`
+  - `Wheel Handle Butterfly Valve`
+  - `Wheel Handle Valve Flanged`
+  - `Wheel Handle Valve Threaded`
+  - `Wheel Handle Valve Y-Type Flanged`
+  - `Wheel Handle Valve Y-Type Threaded`
+
+`Valve Detection.v6i.yolov8.zip`
+- Roboflow workspace: `egh455-7trcz`
+- Roboflow project: `valve-detection-q2w4n`
+- Version: `6`
+- License: `CC BY 4.0`
+- Original classes:
+  - `gauge-pin-centre`
+  - `gauge-pin-end`
+  - `gauge-pin-end2`
+  - `gauge-value-2`
+  - `gauge-value-4`
+  - `gauge-value-6`
+  - `gauge-value-8`
+  - `valve-closed`
+  - `valve-open`
 
 The preparation script merges both archives into one two-class dataset:
 
@@ -137,6 +172,18 @@ python -m app.cli.smoke_reid --image "D:\data\devices\V-1023\sample.jpg" --topk 
 ```
 
 After enrollment, `/debug/status` should show non-zero values for `devices_count`, `device_refs_count`, and `device_faiss_size`.
+
+## ExDARK Low-Light Data
+
+ExDARK is available locally for qualitative low-light preprocessing tests:
+
+- downloaded folder: `data_sources/downloads/exdark`
+- extracted folder used by scripts: `data_sources/extracted/exdark`
+- image count in the current workspace: `7363`
+
+The current folders are organized by object category, for example `Bicycle`, `Boat`, `Bottle`, `Bus`, `Car`, `Cat`, `Chair`, `Cup`, `Dog`, `Motorbike`, `People`, and `Table`.
+
+Use this dataset for visual low-light enhancement examples and discussion. It is not used for valve/gauge detection metrics unless its annotations are parsed and mapped into the ValveLens label space later.
 
 ## Storage Rules
 
