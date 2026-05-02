@@ -1,3 +1,78 @@
+const DEFAULT_THRESHOLDS = {
+  tauZone: 0.65,
+  tauDet: 0.4,
+  tauOcr: 0.7,
+  tauReid: 0.5,
+  tauGap: 0.08,
+};
+
+function buildDecisionReasons(response) {
+  if (!response?.decision || response.decision.status === "ACCEPTED") {
+    return [];
+  }
+
+  const reasons = [];
+  const zoneTop1 = response.zone?.top1;
+  const quality = response.quality || {};
+  const detections = response.detections || [];
+
+  if (!zoneTop1 || zoneTop1.score < DEFAULT_THRESHOLDS.tauZone) {
+    reasons.push("zone confidence below threshold");
+  }
+  if (quality.is_blurry) {
+    reasons.push("image is blurry");
+  }
+  if (quality.is_low_light) {
+    reasons.push("image is low light");
+  }
+
+  const bestDet = detections.reduce(
+    (best, det) => Math.max(best, Number(det.conf || 0)),
+    0
+  );
+  if (detections.length === 0 || bestDet < DEFAULT_THRESHOLDS.tauDet) {
+    reasons.push("device detection below threshold");
+  }
+
+  const ocrDetections = detections.filter((det) => det.ocr?.text);
+  const strongOcr = ocrDetections.some(
+    (det) => Number(det.ocr?.conf || 0) >= DEFAULT_THRESHOLDS.tauOcr
+  );
+  if (ocrDetections.length === 0) {
+    reasons.push("no readable OCR tag");
+  } else if (!strongOcr) {
+    reasons.push("OCR confidence below threshold");
+  } else {
+    reasons.push("OCR text did not match an enrolled device");
+  }
+
+  const topMatchSets = detections
+    .map((det) => det.reid?.top_matches || [])
+    .filter((matches) => matches.length > 0);
+  if (topMatchSets.length === 0) {
+    reasons.push("no ReID matches from device index");
+  } else {
+    const bestMatch = Math.max(
+      ...topMatchSets.map((matches) => Number(matches[0]?.score || 0))
+    );
+    const ambiguous = topMatchSets.some((matches) => {
+      if (matches.length < 2) return false;
+      return (
+        Number(matches[0]?.score || 0) - Number(matches[1]?.score || 0) <
+        DEFAULT_THRESHOLDS.tauGap
+      );
+    });
+    if (bestMatch < DEFAULT_THRESHOLDS.tauReid) {
+      reasons.push("ReID score below threshold");
+    }
+    if (ambiguous) {
+      reasons.push("ReID top matches are too close");
+    }
+  }
+
+  return [...new Set(reasons)];
+}
+
 export default function SidePanel({
   response,
   mode,
@@ -9,6 +84,7 @@ export default function SidePanel({
   const zoneTop1 = response?.zone?.top1;
   const decision = response?.decision;
   const detections = response?.detections || [];
+  const decisionReasons = buildDecisionReasons(response);
   return (
     <div className="panel">
       <div className="list">
@@ -45,6 +121,11 @@ export default function SidePanel({
           {decision?.selected_device && (
             <div className="mono" style={{ marginTop: 8 }}>
               selected: {decision.selected_device.device_id} ({(decision.selected_device.score * 100).toFixed(0)}%)
+            </div>
+          )}
+          {decisionReasons.length > 0 && (
+            <div className="mono" style={{ marginTop: 8 }}>
+              blocked: {decisionReasons.join(" | ")}
             </div>
           )}
         </div>

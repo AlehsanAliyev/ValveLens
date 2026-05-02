@@ -12,6 +12,9 @@ zone_aggregate_mode: sum
 max_device_matches: 5
 detector_model: models/detector.pt
 save_rois: true
+ocr_preprocess: true
+ocr_resize_factor: 2.0
+ocr_expand_ratio: 0.12
 tracker_iou_threshold: 0.3
 tracker_max_missed: 5
 tracker_smoothing_window: 5

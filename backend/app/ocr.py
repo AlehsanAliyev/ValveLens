@@ -2,7 +2,7 @@ import re
 from typing import Dict, Iterable, List, Optional
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 
 _DEVICE_ID_PATTERNS = [
@@ -82,9 +82,15 @@ def _to_builtin(obj):
 
 
 class OCRReader:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        enable_preprocessing: bool = True,
+        resize_factor: float = 2.0,
+    ) -> None:
         self.reader = None
         self.backend = None
+        self.enable_preprocessing = enable_preprocessing
+        self.resize_factor = max(1.0, float(resize_factor))
         try:
             import easyocr  # type: ignore
 
@@ -100,7 +106,33 @@ class OCRReader:
                 self.reader = None
                 self.backend = None
 
-    def read(self, image: Image.Image) -> Dict:
+    def _preprocess_variants(self, image: Image.Image) -> List[Image.Image]:
+        rgb = image.convert("RGB")
+        if not self.enable_preprocessing:
+            return [rgb]
+
+        gray = ImageOps.grayscale(rgb)
+        contrast = ImageOps.autocontrast(gray)
+        sharpened = contrast.filter(ImageFilter.SHARPEN)
+        scale = self.resize_factor
+        resized = sharpened.resize(
+            (max(1, int(sharpened.width * scale)), max(1, int(sharpened.height * scale))),
+            Image.Resampling.LANCZOS,
+        )
+        threshold = resized.point(lambda px: 255 if px > 150 else 0)
+        boosted = ImageEnhance.Contrast(resized).enhance(1.6)
+
+        return [
+            rgb,
+            gray.convert("RGB"),
+            contrast.convert("RGB"),
+            sharpened.convert("RGB"),
+            resized.convert("RGB"),
+            boosted.convert("RGB"),
+            threshold.convert("RGB"),
+        ]
+
+    def _read_once(self, image: Image.Image) -> Dict:
         if self.reader is None:
             return {"text": None, "conf": None, "boxes": []}
 
@@ -145,3 +177,13 @@ class OCRReader:
             }
 
         return {"text": None, "conf": None, "boxes": []}
+
+    def read(self, image: Image.Image) -> Dict:
+        best = {"text": None, "conf": None, "boxes": []}
+        for variant in self._preprocess_variants(image):
+            result = self._read_once(variant)
+            result_conf = float(result.get("conf") or 0.0)
+            best_conf = float(best.get("conf") or 0.0)
+            if result.get("text") and result_conf >= best_conf:
+                best = result
+        return best

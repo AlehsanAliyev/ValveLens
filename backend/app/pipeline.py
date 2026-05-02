@@ -61,6 +61,21 @@ def _save_image(image: Image.Image, filename: str) -> str:
     return str(path)
 
 
+def _expanded_crop(frame_bgr: np.ndarray, bbox: Dict, expand_ratio: float) -> Image.Image:
+    height, width = frame_bgr.shape[:2]
+    x1, y1, x2, y2 = int(bbox["x1"]), int(bbox["y1"]), int(bbox["x2"]), int(bbox["y2"])
+    box_w = max(1, x2 - x1 + 1)
+    box_h = max(1, y2 - y1 + 1)
+    pad_x = int(box_w * max(0.0, expand_ratio))
+    pad_y = int(box_h * max(0.0, expand_ratio))
+    ex1 = max(0, x1 - pad_x)
+    ey1 = max(0, y1 - pad_y)
+    ex2 = min(width - 1, x2 + pad_x)
+    ey2 = min(height - 1, y2 + pad_y)
+    crop = frame_bgr[ey1 : ey2 + 1, ex1 : ex2 + 1]
+    return Image.fromarray(crop[:, :, ::-1])
+
+
 class InferencePipeline:
     def __init__(self) -> None:
         self.config = load_config()
@@ -69,7 +84,10 @@ class InferencePipeline:
         self.device_index = FaissIndex("devices", self.embedder.dim)
         self.detector = Detector(self.config.get("detector_model", "yolov8n.pt"))
         self.segmenter = Segmenter()
-        self.ocr = OCRReader()
+        self.ocr = OCRReader(
+            enable_preprocessing=bool(self.config.get("ocr_preprocess", True)),
+            resize_factor=float(self.config.get("ocr_resize_factor", 2.0)),
+        )
         self.reid = ReIDEmbedder(self.embedder)
         self.tracker = TrackerManager(
             iou_threshold=float(self.config.get("tracker_iou_threshold", 0.3)),
@@ -205,7 +223,11 @@ class InferencePipeline:
                 mask_img = Image.fromarray((mask * 255).astype(np.uint8))
                 mask_path = _save_image(mask_img, f"{request_id}_{det['det_id']}_mask.png")
 
-            ocr_result = self.ocr.read(crop_img)
+            ocr_crop_img = crop_img
+            ocr_expand_ratio = float(self.config.get("ocr_expand_ratio", 0.0))
+            if ocr_expand_ratio > 0:
+                ocr_crop_img = _expanded_crop(frame_bgr, bbox, ocr_expand_ratio)
+            ocr_result = self.ocr.read(ocr_crop_img)
             ocr_text = ocr_result.get("text")
             ocr_conf = float(ocr_result.get("conf") or 0.0)
             LOGGER.info(

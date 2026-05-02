@@ -1,32 +1,160 @@
-# Dataset-Only Zones (Option B)
+# ValveLens Data Sources
 
-This project supports dataset-only zone creation so you do not need home photos. The pipeline downloads public datasets, scans their folder structure, creates zones, ingests keyframes, and rebuilds the FAISS zone index.
+This folder is for raw dataset archives, extracted source data, and small manifests. The large files are not committed. They are kept locally under `downloads/` and `extracted/`, then converted into the project formats used by the backend and training scripts.
 
-## Supported datasets
+Processed data is stored elsewhere:
+
+- zone embeddings and sqlite records: `backend/data/`
+- combined YOLO detector dataset: `data/detection/combined/`
+- detector training outputs: `runs/` and `artifacts/`
+- enrolled device references: `backend/data/devices/`
+
+## Local Datasets Present
+
+The current workspace has these source archives in `data_sources/downloads/`:
+
+- `nyc_indoor_vpr_indoor_anony1.zip`
+- `corridor.zip`
+- `office.zip`
+- `station.zip`
+- `Valve Detection.v1i.yolov8.zip`
+- `Valve Detection.v6i.yolov8.zip`
+
+The matching extracted folders are:
+
+- `indoor_anony`
+- `corridor`
+- `office`
+- `station`
+- `valve_detection_v1i_yolov8`
+- `valve_detection_v6i_yolov8`
+
+## Zone Data
+
+Zone retrieval uses public indoor-place data as a stand-in for industrial areas.
 
 NYC-Indoor-VPR
-- Folder structure: one folder per scene with images inside.
-- Zone naming: NYCIndoorVPR_<scene_folder_name>
-- Recommended max_per_zone: 300
+- Archive: `nyc_indoor_vpr_indoor_anony1.zip`
+- Extracted folder: `data_sources/extracted/indoor_anony`
+- Import path in code: `scan_nyc_indoor_vpr`
+- Zone naming: `NYCIndoorVPR_<scene_folder_name>`
+- Usual import limit: `--max_per_zone 300`
 
-OpenLORIS-Location
-- Folder structure: Scene#/Location#/images
-- Zone naming default: OpenLORISLoc_<Scene>_<Location>
-- Optional: per-scene zones via --per_scene
-- Recommended max_per_zone: 50
+OpenLORIS location folders
+- Archives: `corridor.zip`, `office.zip`, `station.zip`
+- Extracted folders: `data_sources/extracted/corridor`, `office`, `station`
+- Project importer: `import_openloris_zones`
+- Zone naming examples:
+  - `OpenLORIS_corridor_000`
+  - `OpenLORIS_office_001`
+  - `OpenLORIS_station_008`
 
-COLD (optional, large)
-- Use a small subset of sequences.
-- Each sequence folder is treated as a zone: COLD_<sequence_name>
-- Configure sequence URLs in data_sources/manifests/cold_sequences.json
- - Download with: python -m app.cli.download_cold_subset
+Import commands:
 
-## Storage notes
+```powershell
+cd d:\python_works\ValveLens\backend
+python -m app.cli.import_zones_from_datasets --dataset nyc_indoor_vpr --root ..\data_sources\extracted\indoor_anony --max_per_zone 300 --rebuild
+python -m app.cli.import_openloris_zones --root "D:\python_works\ValveLens\data_sources\extracted" --max_per_zone 300 --rebuild
+```
 
-These datasets can be large. Start with a single NYC-Indoor-VPR zip and a small OpenLORIS subset. COLD can be hundreds of MB per sequence, so keep the subset small.
+Smoke tests:
+
+```powershell
+cd d:\python_works\ValveLens\backend
+python -m app.cli.smoke_zones --image "D:\python_works\ValveLens\data_sources\extracted\corridor\000\000.png" --topk 5
+python -m app.cli.smoke_zones_aggregate --image "D:\python_works\ValveLens\data_sources\extracted\corridor\000\000.png" --topk 5
+```
+
+## Detection Data
+
+The detector training data comes from two YOLO-format valve/gauge archives:
+
+- `Valve Detection.v1i.yolov8.zip`
+- `Valve Detection.v6i.yolov8.zip`
+
+The extracted folders are:
+
+- `data_sources/extracted/valve_detection_v1i_yolov8`
+- `data_sources/extracted/valve_detection_v6i_yolov8`
+
+The preparation script merges both archives into one two-class dataset:
+
+- `0: valve`
+- `1: gauge`
+
+Build and inspect the combined dataset:
+
+```powershell
+cd d:\python_works\ValveLens
+python scripts\prepare_combined_detection_dataset.py
+python scripts\inspect_combined_detection_dataset.py
+```
+
+Train and verify the detector:
+
+```powershell
+python scripts\train_baseline_detector.py --model yolov8n.pt --epochs 30 --imgsz 640 --device 0 --name valvelens_v1_cuda --copy-best
+python scripts\evaluate_detector.py --weights models\detector.pt --data artifacts\detection_training\combined_ultralytics.yaml --split test
+python scripts\check_backend_detector_integration.py
+```
+
+The backend expects the runtime detector here:
+
+```text
+models/detector.pt
+```
+
+`models/` is ignored by git, so this weight file needs to be restored locally when setting up another machine.
+
+## Device Reference Data
+
+Device references are not a downloaded public dataset. They are local enrollment images used for the v0.3 identity demo.
+
+Recommended first IDs:
+
+- `V-1023`
+- `V-2040`
+- `PG-45`
+
+Capture 3 to 10 reference images per device. Keep the framing close to the detector crop. For OCR tests, include a clear printed tag in at least some images.
+
+Example local layout:
+
+```text
+D:\data\devices\V-1023\
+D:\data\devices\V-2040\
+D:\data\devices\PG-45\
+```
+
+Enrollment commands:
+
+```powershell
+cd d:\python_works\ValveLens\backend
+python -m app.cli.create_device --device_id "V-1023" --zone_id "<ZONE_ID>" --type valve --desc "Printed test valve"
+python -m app.cli.add_device_refs --device_id "V-1023" --folder "D:\data\devices\V-1023"
+python -m app.cli.rebuild_device_index
+python -m app.cli.smoke_reid --image "D:\data\devices\V-1023\sample.jpg" --topk 5
+```
+
+After enrollment, `/debug/status` should show non-zero values for `devices_count`, `device_refs_count`, and `device_faiss_size`.
+
+## Storage Rules
+
+Do not commit:
+
+- files in `data_sources/downloads/`
+- files in `data_sources/extracted/`
+- generated FAISS indices
+- trained weights
+- generated ROI crops
+- full training runs
+
+Commit only the scripts, small manifests, documentation, and compact experiment summaries that are needed to reproduce the work.
 
 ## Troubleshooting
 
-If downloads fail with 401/403, manually place the archive in data_sources/downloads and re-run the importer.
+If a zone import returns no images, check the folder level first. Most import failures happen because the command points one directory too high or too low.
 
-If zones are not found, confirm the extracted folder paths match the expected structure.
+If detector preparation fails, confirm both `Valve Detection...zip` archives are present in `data_sources/downloads/` and extracted under `data_sources/extracted/`.
+
+If ReID returns no device matches, check `/debug/status`. The usual cause is that no device references have been enrolled or the device FAISS index has not been rebuilt.
