@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
 from app.pipeline import InferencePipeline
-from app.routes import debug, devices, feedback, infer, zones
+from app.routes import ask, debug, devices, feedback, infer, zones
 
 logging.basicConfig(level=logging.INFO)
 
@@ -36,3 +36,4 @@ app.include_router(zones.router)
 app.include_router(devices.router)
 app.include_router(feedback.router)
 app.include_router(debug.router)
+app.include_router(ask.router)

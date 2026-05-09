@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 const DEFAULT_THRESHOLDS = {
   tauZone: 0.65,
   tauDet: 0.4,
@@ -79,12 +81,23 @@ export default function SidePanel({
   onModeChange,
   onConfirm,
   onReject,
+  onAsk,
+  askResult,
+  askStatus,
 }) {
+  const [question, setQuestion] = useState("");
   const zoneCandidates = response?.zone?.candidates || [];
   const zoneTop1 = response?.zone?.top1;
   const decision = response?.decision;
   const detections = response?.detections || [];
   const decisionReasons = buildDecisionReasons(response);
+  async function handleAskSubmit(event) {
+    event.preventDefault();
+    const trimmed = question.trim();
+    if (!trimmed || !onAsk) return;
+    await onAsk(trimmed);
+  }
+
   return (
     <div className="panel">
       <div className="list">
@@ -161,6 +174,36 @@ export default function SidePanel({
               );
             })}
           </div>
+        </div>
+        <div>
+          <div className="pill">Ask</div>
+          <form onSubmit={handleAskSubmit} style={{ marginTop: 8 }}>
+            <div className="field">
+              <input
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                placeholder="What is this?"
+                disabled={!response}
+              />
+            </div>
+            <div className="controls" style={{ marginTop: 8 }}>
+              <button className="button" disabled={!response || !question.trim()}>
+                Ask
+              </button>
+            </div>
+          </form>
+          {askStatus && (
+            <div className="mono" style={{ marginTop: 8 }}>{askStatus}</div>
+          )}
+          {askResult && (
+            <div className="mono" style={{ marginTop: 8 }}>
+              <div>{askResult.answer}</div>
+              <div>
+                confidence: {(Number(askResult.confidence || 0) * 100).toFixed(0)}%
+              </div>
+              <div>action: {askResult.recommended_next_action}</div>
+            </div>
+          )}
         </div>
         <div>
           <div className="pill">Feedback</div>

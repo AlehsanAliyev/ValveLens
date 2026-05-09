@@ -36,6 +36,21 @@ to:
 
 ## Concrete implementation order
 
+### Identity benchmark rule
+
+v0.3 requires enrolled devices and device reference images. Public valve/gauge datasets support detector evaluation, but they do not prove exact device identity unless the same physical device instance appears in reference and query images.
+
+Use `docs/DEVICE_IDENTITY_BENCHMARK.md` for the immediate identity benchmark workflow. The short version is:
+
+- create `data/device_benchmark/devices_manifest.csv`
+- create separate reference folders under `data/device_benchmark/refs/<DEVICE_ID>/`
+- create held-out query folders under `data/device_benchmark/queries/<DEVICE_ID>/`
+- enroll devices with `enroll_devices_from_manifest`
+- rebuild the device FAISS index
+- validate OCR/ReID/fusion/decision behavior with `validate_identity_benchmark`
+
+This keeps detection evaluation and identity evaluation separate, which is important for a defensible v0.3 claim.
+
 ### Step 1: populate the device database
 
 Pick 2 to 5 devices for the first pass. Keep it small and controlled.

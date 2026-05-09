@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import {
+  askQuestion,
   getDebugStatus,
   inferImage,
   inferVideo,
@@ -22,6 +23,9 @@ export default function Live() {
   const [mediaSize, setMediaSize] = useState(null);
   const [interactionMode, setInteractionMode] = useState("view");
   const [status, setStatus] = useState("");
+  const [askResult, setAskResult] = useState(null);
+  const [askStatus, setAskStatus] = useState("");
+  const [selectedDetectionId, setSelectedDetectionId] = useState(null);
   const [debugStatus, setDebugStatus] = useState(null);
   const [debugError, setDebugError] = useState("");
   const sessionIdRef = useRef(
@@ -49,6 +53,8 @@ export default function Live() {
         image_b64: dataUrl,
       });
       setResponse(res);
+      setAskResult(null);
+      setSelectedDetectionId(null);
       setStatus("");
     } catch (err) {
       setStatus(err.message);
@@ -61,6 +67,8 @@ export default function Live() {
     try {
       const res = await inferImage(file);
       setResponse(res);
+      setAskResult(null);
+      setSelectedDetectionId(null);
       setStatus("");
     } catch (err) {
       setStatus(err.message);
@@ -77,6 +85,8 @@ export default function Live() {
       const res = await inferVideo(file, videoSessionId);
       setResponses(res);
       setCurrentIndex(0);
+      setAskResult(null);
+      setSelectedDetectionId(null);
       setStatus("");
     } catch (err) {
       setStatus(err.message);
@@ -85,6 +95,7 @@ export default function Live() {
 
   async function handleTapSelect(det) {
     if (!activeResponse) return;
+    setSelectedDetectionId(det.det_id);
     const activeSessionId =
       mode === "webcam"
         ? sessionIdRef.current
@@ -164,6 +175,28 @@ export default function Live() {
     }
   }
 
+  async function handleAsk(question) {
+    if (!activeResponse) return;
+    const activeSessionId =
+      mode === "webcam"
+        ? sessionIdRef.current
+        : mode === "video"
+          ? videoSessionIdRef.current
+          : null;
+    try {
+      setAskStatus("");
+      const res = await askQuestion({
+        question,
+        session_id: activeSessionId,
+        obs_id: activeResponse.request_id,
+        selected_det_id: selectedDetectionId,
+      });
+      setAskResult(res);
+    } catch (err) {
+      setAskStatus(err.message);
+    }
+  }
+
   async function refreshDebugStatus() {
     try {
       const res = await getDebugStatus();
@@ -239,6 +272,9 @@ export default function Live() {
           onModeChange={setInteractionMode}
           onConfirm={handleConfirm}
           onReject={handleReject}
+          onAsk={handleAsk}
+          askResult={askResult}
+          askStatus={askStatus}
         />
         <div className="panel">
           <div className="pill">System Status</div>

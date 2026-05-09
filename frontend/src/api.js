@@ -109,3 +109,12 @@ export async function getDebugStatus() {
   const res = await fetch(`${API_BASE}/debug/status`);
   return handleResponse(res);
 }
+
+export async function askQuestion(payload) {
+  const res = await fetch(`${API_BASE}/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+}
