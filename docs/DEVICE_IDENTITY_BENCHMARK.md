@@ -41,6 +41,46 @@ Proxy identity data may use public images or repeated-looking examples, but only
 - do not mix detector test images into the identity database unless you can justify each device ID
 - keep synthetic corruptions as condition tests, not as new device identities
 
+## Proxy Identity Benchmark from Detection Data
+
+The first v0.3 blocker is practical: the device database can contain `V-1023`, `V-2040`, and `PG-45`, but ReID cannot work while the reference folders are empty. Until real repeated photos of physical devices are captured, ValveLens can use a controlled proxy identity benchmark built from the existing YOLO valve/gauge detection dataset.
+
+This proxy workflow:
+
+- crops labeled valve/gauge objects from `data/detection/combined/`
+- treats selected crops as pseudo-devices
+- assigns stable IDs such as `V-1023`, `V-2040`, and `PG-45`
+- generates separate reference and query variants
+- adds readable synthetic tags to some images
+- creates degraded query conditions such as low light, glare, blur, noise, low contrast, and occlusion
+- writes normal `devices_manifest.csv` and `queries_manifest.csv`
+
+This solves the empty-reference problem and allows OCR, ReID, fusion, and decision behavior to be tested end to end. It does not prove final real industrial identity performance. It validates the identity pipeline mechanically and experimentally under controlled generated conditions. Real physical device references are still needed for stronger external validation.
+
+Build the proxy benchmark from the repo root:
+
+```powershell
+cd D:\python_works\ValveLens
+python .\scripts\build_proxy_device_benchmark.py --devices 3 --refs-per-device 8 --queries-per-device 12 --zone-id <PASTE_REAL_ZONE_ID> --seed 42 --overwrite
+python .\scripts\preview_proxy_device_benchmark.py
+```
+
+Then enroll and validate from the backend folder:
+
+```powershell
+cd D:\python_works\ValveLens\backend
+python -m app.cli.enroll_devices_from_manifest --manifest ..\data\device_benchmark\devices_manifest.csv --refs-root ..\data\device_benchmark\refs --force-add-refs
+python -m app.cli.rebuild_device_index
+python -m app.cli.validate_identity_benchmark --queries-manifest ..\data\device_benchmark\queries_manifest.csv --topk 5 --out ..\artifacts\identity_benchmark
+python -m app.cli.smoke_reid --image "..\data\device_benchmark\queries\V-1023\clean\q001.jpg" --topk 5
+```
+
+Preview sheets are written to:
+
+```text
+artifacts/identity_benchmark/proxy_preview/
+```
+
 ## Recommended Folder Structure
 
 ```text
@@ -57,6 +97,8 @@ data/device_benchmark/
       low_light/
       glare/
       blur/
+      noise/
+      low_contrast/
       occluded/
     V-2040/
     PG-45/

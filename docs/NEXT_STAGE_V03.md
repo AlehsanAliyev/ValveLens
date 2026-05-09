@@ -51,6 +51,8 @@ Use `docs/DEVICE_IDENTITY_BENCHMARK.md` for the immediate identity benchmark wor
 
 This keeps detection evaluation and identity evaluation separate, which is important for a defensible v0.3 claim.
 
+If real repeated device images are not available yet, v0.3 can first be validated with the controlled proxy identity benchmark built by `scripts/build_proxy_device_benchmark.py`. That validates the mechanics of enrollment, OCR, ReID, fusion, and decision logging, but real device references remain the stronger final validation.
+
 ### Step 1: populate the device database
 
 Pick 2 to 5 devices for the first pass. Keep it small and controlled.
