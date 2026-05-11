@@ -1,6 +1,8 @@
 import argparse
 import csv
 import json
+import shutil
+from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib import request as urlrequest
@@ -32,6 +34,14 @@ def _safe_float(value: Any) -> Optional[float]:
         return float(value)
     except Exception:
         return None
+
+
+def _ocr_backend_available(reader: OCRReader) -> bool:
+    if reader.backend == "easyocr":
+        return True
+    if reader.backend == "tesseract":
+        return shutil.which("tesseract") is not None
+    return False
 
 
 def _write_json(path: Path, payload: Dict) -> None:
@@ -197,7 +207,7 @@ def _observation_decision_counts() -> Dict[str, int]:
     return {"observations_accepted_count": accepted, "observations_deferred_count": deferred}
 
 
-def _failure_reasons(row: Dict) -> str:
+def _failure_reasons(row: Dict, ocr_backend_available: bool) -> str:
     reasons = []
     if row["file_exists"] != "true":
         reasons.append("missing_file")
@@ -205,8 +215,14 @@ def _failure_reasons(row: Dict) -> str:
         reasons.append("expected_device_missing")
     if row["reid_top1_ok"] != "true":
         reasons.append("reid_top1_miss")
-    if row["tag_visible"] == "true" and row["ocr_exact_match"] != "true":
+    if (
+        ocr_backend_available
+        and row["tag_visible"] == "true"
+        and row["ocr_exact_match"] != "true"
+    ):
         reasons.append("ocr_miss")
+    if (not ocr_backend_available) and row["tag_visible"] == "true":
+        reasons.append("ocr_unavailable")
     if row.get("api_decision_status") == "UNCERTAIN":
         reasons.append("decision_deferred")
     if row.get("api_selected_device") and row.get("api_selected_device") != row.get("expected_device_id"):
@@ -235,6 +251,7 @@ def main() -> None:
     index.load()
     enrolled_ids = db.fetch_device_ids()
     reader = OCRReader()
+    ocr_backend_available = _ocr_backend_available(reader)
     queries = _load_queries(manifest_path)
 
     rows: List[Dict[str, Any]] = []
@@ -267,7 +284,7 @@ def main() -> None:
                 reid_top1_score,
                 reid_matches,
             ) = _reid_check(image_path, expected_id, embedder, index, args.topk)
-            if tag_visible:
+            if tag_visible and ocr_backend_available:
                 ocr_exact_match, ocr_text, ocr_conf, ocr_matched_id = _ocr_check(
                     image_path,
                     expected_id,
@@ -294,6 +311,8 @@ def main() -> None:
             "reid_top1_id": reid_top1_id or "",
             "reid_top1_score": reid_top1_score if reid_top1_score is not None else "",
             "reid_topk_matches": json.dumps(reid_matches[: args.topk]),
+            "ocr_backend_available": str(ocr_backend_available).lower(),
+            "ocr_attempted": str(bool(tag_visible and ocr_backend_available and file_exists)).lower(),
             "ocr_exact_match": str(ocr_exact_match).lower() if tag_visible else "",
             "ocr_text": ocr_text or "",
             "ocr_conf": ocr_conf if ocr_conf is not None else "",
@@ -303,12 +322,17 @@ def main() -> None:
             "api_selected_score": api_score if api_score is not None else "",
             "api_message": api_message or "",
         }
-        out_row["failure_reasons"] = _failure_reasons(out_row)
+        out_row["failure_reasons"] = _failure_reasons(out_row, ocr_backend_available)
         rows.append(out_row)
+        ocr_display: str | bool = "n/a"
+        if tag_visible and not ocr_backend_available:
+            ocr_display = "unavailable"
+        elif tag_visible:
+            ocr_display = ocr_exact_match
         print(
             f"{image_path.name}: exists={file_exists} expected={expected_id} "
             f"reid_top1={reid_top1_id} reid_topk_ok={reid_topk_ok} "
-            f"ocr_ok={ocr_exact_match if tag_visible else 'n/a'}"
+            f"ocr_ok={ocr_display}"
         )
 
     total = len(rows)
@@ -316,13 +340,35 @@ def main() -> None:
     reid_eval = [row for row in rows if row["file_exists"] == "true"]
     reid_top1_hits = sum(1 for row in reid_eval if row["reid_top1_ok"] == "true")
     reid_topk_hits = sum(1 for row in reid_eval if row["reid_topk_ok"] == "true")
-    ocr_eval = [
+    visible_tag_eval = [
         row for row in rows if row["file_exists"] == "true" and row["tag_visible"] == "true"
     ]
+    ocr_eval = [row for row in visible_tag_eval if row["ocr_attempted"] == "true"]
     ocr_hits = sum(1 for row in ocr_eval if row["ocr_exact_match"] == "true")
     api_eval = [row for row in rows if row["api_decision_status"]]
     accepted = sum(1 for row in api_eval if row["api_decision_status"] == "ACCEPTED")
     deferred = sum(1 for row in api_eval if row["api_decision_status"] == "UNCERTAIN")
+    api_error_count = sum(
+        1
+        for row in rows
+        if str(row.get("api_message") or "").startswith("api_error:")
+    )
+    api_reason_counts = Counter(
+        str(row.get("api_message") or row.get("api_decision_status") or "unknown")
+        for row in api_eval
+    )
+    if not ocr_backend_available and visible_tag_eval:
+        ocr_status = "unavailable"
+        ocr_rate: Optional[float] = None
+    elif ocr_eval and ocr_hits > 0:
+        ocr_status = "tested_with_matches"
+        ocr_rate = ocr_hits / len(ocr_eval)
+    elif ocr_eval:
+        ocr_status = "tested_no_matches"
+        ocr_rate = 0.0
+    else:
+        ocr_status = "not_tested"
+        ocr_rate = None
 
     obs_counts = _observation_decision_counts()
     summary = {
@@ -334,10 +380,20 @@ def main() -> None:
         ),
         "reid_top1_accuracy": reid_top1_hits / len(reid_eval) if reid_eval else 0.0,
         "reid_topk_accuracy": reid_topk_hits / len(reid_eval) if reid_eval else 0.0,
-        "ocr_visible_tag_exact_match_rate": ocr_hits / len(ocr_eval) if ocr_eval else 0.0,
+        "ocr_backend": reader.backend or "none",
+        "ocr_backend_available": ocr_backend_available,
+        "ocr_visible_tag_images": len(visible_tag_eval),
+        "ocr_attempted_images": len(ocr_eval),
+        "ocr_exact_matches": ocr_hits,
+        "ocr_visible_tag_exact_match_rate": ocr_rate,
+        "ocr_status": ocr_status,
+        "api_tested": bool(args.backend_url),
         "accepted_count": accepted,
         "deferred_count": deferred,
         "api_evaluated_count": len(api_eval),
+        "api_error_count": api_error_count,
+        "at_least_one_accepted": accepted > 0,
+        "top_api_decision_reasons": dict(api_reason_counts.most_common(5)),
         **obs_counts,
         "failure_reason_counts": {},
     }

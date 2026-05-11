@@ -53,6 +53,8 @@ This keeps detection evaluation and identity evaluation separate, which is impor
 
 If real repeated device images are not available yet, v0.3 can first be validated with the controlled proxy identity benchmark built by `scripts/build_proxy_device_benchmark.py`. That validates the mechanics of enrollment, OCR, ReID, fusion, and decision logging, but real device references remain the stronger final validation.
 
+Proxy identity should be considered structurally validated only when devices, reference images, device FAISS size, ReID top-k retrieval, OCR smoke testing, and at least one accepted inference path have all been checked. ReID-only success is an important milestone, but it is not the full v0.3 identity acceptance path.
+
 ### Step 1: populate the device database
 
 Pick 2 to 5 devices for the first pass. Keep it small and controlled.

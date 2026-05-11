@@ -252,10 +252,57 @@ def apply_condition(image: np.ndarray, condition: str, rng: np.random.Generator)
     return out
 
 
-def make_tag_patch(device_id: str, rng: np.random.Generator, degraded: bool = False) -> np.ndarray:
+def make_tag_patch(
+    device_id: str,
+    rng: np.random.Generator,
+    degraded: bool = False,
+    easy_tags: bool = False,
+    tag_scale: float = 1.0,
+    tag_thickness: int = 2,
+) -> np.ndarray:
+    if easy_tags:
+        font_scale = 1.18 * max(0.5, tag_scale)
+        thickness = max(2, tag_thickness)
+        (text_w, text_h), baseline = cv2.getTextSize(
+            device_id,
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            thickness,
+        )
+        pad_x = 30
+        pad_y = 22
+        patch_w = max(220, text_w + pad_x * 2)
+        patch_h = max(88, text_h + baseline + pad_y * 2)
+        patch = np.full((patch_h, patch_w, 3), 255, dtype=np.uint8)
+        cv2.rectangle(patch, (0, 0), (patch_w - 1, patch_h - 1), (0, 0, 0), 3)
+        x = (patch_w - text_w) // 2
+        y = (patch_h + text_h) // 2 - baseline
+        cv2.putText(
+            patch,
+            device_id,
+            (x, y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            (0, 0, 0),
+            thickness,
+            cv2.LINE_AA,
+        )
+        if degraded:
+            patch = cv2.GaussianBlur(patch, (3, 3), 0)
+        return patch
+
     patch = np.full((54, 154, 3), 250, dtype=np.uint8)
     cv2.rectangle(patch, (0, 0), (153, 53), (20, 20, 20), 2)
-    cv2.putText(patch, device_id, (10, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.82, (15, 15, 15), 2, cv2.LINE_AA)
+    cv2.putText(
+        patch,
+        device_id,
+        (10, 36),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.82,
+        (15, 15, 15),
+        2,
+        cv2.LINE_AA,
+    )
     if degraded:
         patch = cv2.GaussianBlur(patch, (3, 3), 0)
         patch = np.clip(patch.astype(np.float32) * float(rng.uniform(0.78, 0.92)), 0, 255).astype(np.uint8)
@@ -264,16 +311,32 @@ def make_tag_patch(device_id: str, rng: np.random.Generator, degraded: bool = Fa
     return cv2.warpAffine(patch, matrix, (patch.shape[1], patch.shape[0]), borderValue=(245, 245, 245))
 
 
-def add_tag(image: np.ndarray, device_id: str, rng: np.random.Generator, degraded: bool = False) -> np.ndarray:
+def add_tag(
+    image: np.ndarray,
+    device_id: str,
+    rng: np.random.Generator,
+    degraded: bool = False,
+    easy_tags: bool = False,
+    tag_scale: float = 1.0,
+    tag_thickness: int = 2,
+) -> np.ndarray:
     out = image.copy()
-    patch = make_tag_patch(device_id, rng, degraded=degraded)
+    patch = make_tag_patch(
+        device_id,
+        rng,
+        degraded=degraded,
+        easy_tags=easy_tags,
+        tag_scale=tag_scale,
+        tag_thickness=tag_thickness,
+    )
     h, w = out.shape[:2]
     ph, pw = patch.shape[:2]
+    margin = 44 if easy_tags else 18
     corners = [
-        (18, 18),
-        (w - pw - 18, 18),
-        (18, h - ph - 18),
-        (w - pw - 18, h - ph - 18),
+        (margin, margin),
+        (w - pw - margin, margin),
+        (margin, h - ph - margin),
+        (w - pw - margin, h - ph - margin),
     ]
     x, y = corners[int(rng.integers(0, len(corners)))]
     x = max(0, min(w - pw, x))
@@ -289,6 +352,9 @@ def generate_variant(
     condition: str,
     tag_visible: bool,
     query: bool,
+    easy_tags: bool = False,
+    tag_scale: float = 1.0,
+    tag_thickness: int = 2,
 ) -> np.ndarray:
     out = affine_variant(base, rng, stronger=query)
     if query or rng.random() < 0.35:
@@ -296,7 +362,16 @@ def generate_variant(
     out = adjust_color(out, rng, condition if condition in {"low_light", "low_contrast"} else "clean")
     out = apply_condition(out, condition, rng)
     if tag_visible:
-        out = add_tag(out, device_id, rng, degraded=query and condition in {"low_light", "glare", "blur", "noise"})
+        degrade_tag = (not easy_tags) and query and condition in {"low_light", "glare", "blur", "noise"}
+        out = add_tag(
+            out,
+            device_id,
+            rng,
+            degraded=degrade_tag,
+            easy_tags=easy_tags,
+            tag_scale=tag_scale,
+            tag_thickness=tag_thickness,
+        )
     return out
 
 
@@ -394,6 +469,9 @@ def build_benchmark(args: argparse.Namespace) -> Dict:
                 condition="clean",
                 tag_visible=tag_visible,
                 query=False,
+                easy_tags=args.easy_tags,
+                tag_scale=args.tag_scale,
+                tag_thickness=args.tag_thickness,
             )
             write_image(ref_dir / f"ref{idx:03d}.jpg", image)
             ref_count += 1
@@ -405,7 +483,11 @@ def build_benchmark(args: argparse.Namespace) -> Dict:
         for condition in condition_sequence:
             per_condition_idx[condition] += 1
             query_count += 1
-            tag_visible = bool(plan["has_visible_tag"]) and condition != "occluded" and (query_count % 4 != 0)
+            tag_visible = (
+                bool(plan["has_visible_tag"])
+                and condition != "occluded"
+                and rng.random() < args.tagged_query_ratio
+            )
             image = generate_variant(
                 crop.crop,
                 device_id,
@@ -413,6 +495,9 @@ def build_benchmark(args: argparse.Namespace) -> Dict:
                 condition=condition,
                 tag_visible=tag_visible,
                 query=True,
+                easy_tags=args.easy_tags,
+                tag_scale=args.tag_scale,
+                tag_thickness=args.tag_thickness,
             )
             filename = f"q{per_condition_idx[condition]:03d}.jpg"
             query_path = out_root / "queries" / device_id / condition / filename
@@ -471,11 +556,21 @@ def main() -> None:
     parser.add_argument("--zone-id", default="<ZONE_ID>")
     parser.add_argument("--min-crop-size", type=int, default=12)
     parser.add_argument("--crop-expand", type=float, default=2.0)
+    parser.add_argument("--easy-tags", action="store_true", help="Draw larger horizontal high-contrast OCR tags.")
+    parser.add_argument("--tag-scale", type=float, default=1.0, help="Scale multiplier for synthetic tag text.")
+    parser.add_argument("--tag-thickness", type=int, default=3, help="Text thickness for synthetic tags.")
+    parser.add_argument(
+        "--tagged-query-ratio",
+        type=float,
+        default=0.75,
+        help="Fraction of non-occluded query images that receive a visible synthetic tag.",
+    )
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
     if args.devices > len(DEVICE_PLAN):
         raise SystemExit(f"This proxy builder supports up to {len(DEVICE_PLAN)} configured devices.")
+    args.tagged_query_ratio = max(0.0, min(1.0, args.tagged_query_ratio))
 
     summary = build_benchmark(args)
     print("Proxy device benchmark built.")

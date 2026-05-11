@@ -61,7 +61,7 @@ Build the proxy benchmark from the repo root:
 
 ```powershell
 cd D:\python_works\ValveLens
-python .\scripts\build_proxy_device_benchmark.py --devices 3 --refs-per-device 8 --queries-per-device 12 --zone-id <PASTE_REAL_ZONE_ID> --seed 42 --overwrite
+python .\scripts\build_proxy_device_benchmark.py --devices 3 --refs-per-device 8 --queries-per-device 12 --zone-id <PASTE_REAL_ZONE_ID> --seed 42 --overwrite --easy-tags
 python .\scripts\preview_proxy_device_benchmark.py
 ```
 
@@ -73,6 +73,8 @@ python -m app.cli.enroll_devices_from_manifest --manifest ..\data\device_benchma
 python -m app.cli.rebuild_device_index
 python -m app.cli.validate_identity_benchmark --queries-manifest ..\data\device_benchmark\queries_manifest.csv --topk 5 --out ..\artifacts\identity_benchmark
 python -m app.cli.smoke_reid --image "..\data\device_benchmark\queries\V-1023\clean\q001.jpg" --topk 5
+python -m app.cli.check_ocr_backend
+python -m app.cli.smoke_ocr --image "..\data\device_benchmark\queries\V-1023\clean\q001.jpg" --expected V-1023
 ```
 
 Preview sheets are written to:
@@ -80,6 +82,22 @@ Preview sheets are written to:
 ```text
 artifacts/identity_benchmark/proxy_preview/
 ```
+
+## Current Proxy Benchmark Interpretation
+
+The proxy benchmark is useful for validating that the identity machinery works:
+
+- devices can be created and enrolled
+- reference images can be indexed in the device FAISS store
+- ReID can retrieve the expected proxy device from held-out query crops
+- OCR can be tested on generated visible tags when the OCR backend is installed
+- validation reports can separate missing files, ReID misses, OCR misses, OCR backend failures, and API decision outcomes
+
+Use `--easy-tags` first. It creates larger horizontal high-contrast labels so the first OCR validation checks the pipeline rather than tag legibility. Later, run without `--easy-tags` or with harder degraded tags to study OCR robustness.
+
+If OCR reports no matches while `check_ocr_backend` says Tesseract is missing, that is an environment blocker, not an OCR algorithm failure. Install Tesseract-OCR or configure EasyOCR before reporting OCR exact-match results.
+
+The proxy query images are tight device crops. ReID validation works well on this format, but full API `ACCEPTED` decisions may require full-frame proxy scenes because the runtime pipeline starts with zone localization and detector boxes. If tight crops do not reach `ACCEPTED` through the API, generate full-frame scenes before changing the runtime pipeline.
 
 ## Recommended Folder Structure
 
