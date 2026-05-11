@@ -14,7 +14,16 @@ _DEVICE_ID_PATTERNS = [
 
 def normalize_text(text: str) -> str:
     text = text.upper().strip()
+    for dash in ("—", "–", "−", "‐", "‑", "‒", "―"):
+        text = text.replace(dash, "-")
     return re.sub(r"[^A-Z0-9-]", "", text)
+
+
+def _normalize_ocr_scan_text(text: str) -> str:
+    text = text.upper()
+    for dash in ("—", "–", "−", "‐", "‑", "‒", "―"):
+        text = text.replace(dash, "-")
+    return text
 
 
 def _canonicalize_device_id(candidate: str) -> str:
@@ -30,6 +39,7 @@ def _canonicalize_device_id(candidate: str) -> str:
 def extract_device_ids(text: str) -> List[str]:
     if not text:
         return []
+    text = _normalize_ocr_scan_text(text)
     found: List[str] = []
     seen = set()
     for pattern in _DEVICE_ID_PATTERNS:
@@ -111,6 +121,8 @@ class OCRReader:
         if not self.enable_preprocessing:
             return [rgb]
 
+        variants: List[Image.Image] = []
+        variants.extend(self._white_region_crops(rgb))
         gray = ImageOps.grayscale(rgb)
         contrast = ImageOps.autocontrast(gray)
         sharpened = contrast.filter(ImageFilter.SHARPEN)
@@ -122,7 +134,8 @@ class OCRReader:
         threshold = resized.point(lambda px: 255 if px > 150 else 0)
         boosted = ImageEnhance.Contrast(resized).enhance(1.6)
 
-        return [
+        variants.extend(
+            [
             rgb,
             gray.convert("RGB"),
             contrast.convert("RGB"),
@@ -130,7 +143,42 @@ class OCRReader:
             resized.convert("RGB"),
             boosted.convert("RGB"),
             threshold.convert("RGB"),
-        ]
+            ]
+        )
+        return variants
+
+    def _white_region_crops(self, image: Image.Image) -> List[Image.Image]:
+        try:
+            import cv2  # type: ignore
+        except Exception:
+            return []
+
+        arr = np.array(image.convert("RGB"))
+        gray = np.mean(arr, axis=2).astype(np.uint8)
+        mask = (gray > 242).astype(np.uint8) * 255
+        kernel = np.ones((5, 5), dtype=np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+        crops: List[Image.Image] = []
+        image_area = max(1, image.width * image.height)
+        for idx in range(1, num_labels):
+            x, y, w, h, area = [int(value) for value in stats[idx]]
+            if area < 1200 or area > image_area * 0.45:
+                continue
+            if w < 90 or h < 28:
+                continue
+            aspect = w / max(1, h)
+            if aspect < 1.6 or aspect > 8.5:
+                continue
+            pad = 10
+            left = max(0, x - pad)
+            top = max(0, y - pad)
+            right = min(image.width, x + w + pad)
+            bottom = min(image.height, y + h + pad)
+            crop = image.crop((left, top, right, bottom))
+            crop = crop.resize((max(1, crop.width * 3), max(1, crop.height * 3)), Image.Resampling.LANCZOS)
+            crops.append(crop)
+        return crops[:4]
 
     def _read_once(self, image: Image.Image) -> Dict:
         if self.reader is None:
@@ -145,15 +193,23 @@ class OCRReader:
             return {"text": best[1], "conf": float(best[2]), "boxes": boxes}
 
         if self.backend == "tesseract":
+            config = "--psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-—–−"
             try:
-                data = self.reader.image_to_data(image, output_type="dict")
+                string_text = str(self.reader.image_to_string(image, config=config) or "").strip()
+                if extract_device_ids(string_text):
+                    return {"text": string_text, "conf": 0.70, "boxes": []}
+            except Exception:
+                pass
+            try:
+                data = self.reader.image_to_data(image, output_type="dict", config=config)
             except Exception:
                 return {"text": None, "conf": None, "boxes": []}
             texts: List[str] = []
             confs: List[float] = []
             boxes: List[List[int]] = []
             for i, text in enumerate(data.get("text", [])):
-                if not text:
+                text = str(text or "").strip()
+                if not normalize_text(text):
                     continue
                 conf = float(data.get("conf", [0])[i])
                 if conf <= 0:
@@ -169,6 +225,13 @@ class OCRReader:
                 boxes.append([int(x), int(y), int(x + w), int(y + h)])
             if not texts:
                 return {"text": None, "conf": None, "boxes": []}
+            combined = " ".join(texts)
+            if extract_device_ids(combined):
+                return {
+                    "text": combined,
+                    "conf": float(max(confs)),
+                    "boxes": boxes,
+                }
             best_idx = int(np.argmax(confs))
             return {
                 "text": texts[best_idx],
@@ -184,6 +247,13 @@ class OCRReader:
             result = self._read_once(variant)
             result_conf = float(result.get("conf") or 0.0)
             best_conf = float(best.get("conf") or 0.0)
-            if result.get("text") and result_conf >= best_conf:
+            result_text = str(result.get("text") or "").strip()
+            best_text = str(best.get("text") or "").strip()
+            result_has_id = bool(extract_device_ids(result_text))
+            best_has_id = bool(extract_device_ids(best_text))
+            if result_text and (
+                (result_has_id and not best_has_id)
+                or (result_has_id == best_has_id and result_conf >= best_conf)
+            ):
                 best = result
         return best

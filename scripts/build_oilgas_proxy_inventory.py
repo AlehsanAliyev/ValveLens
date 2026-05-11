@@ -260,36 +260,36 @@ def perspective_variant(image: np.ndarray, rng: np.random.Generator, max_shift: 
 def adjust_color(image: np.ndarray, rng: np.random.Generator, condition: str = "clean") -> np.ndarray:
     out = image.astype(np.float32)
     if condition == "low_light":
-        alpha = float(rng.uniform(0.42, 0.64))
-        beta = float(rng.uniform(-20, -6))
+        alpha = float(rng.uniform(0.66, 0.82))
+        beta = float(rng.uniform(-8, 2))
     elif condition == "low_contrast":
         mean = np.mean(out, axis=(0, 1), keepdims=True)
-        return np.clip(mean + (out - mean) * float(rng.uniform(0.42, 0.62)), 0, 255).astype(np.uint8)
+        return np.clip(mean + (out - mean) * float(rng.uniform(0.62, 0.78)), 0, 255).astype(np.uint8)
     else:
-        alpha = float(rng.uniform(0.88, 1.15))
-        beta = float(rng.uniform(-12, 12))
+        alpha = float(rng.uniform(0.97, 1.05))
+        beta = float(rng.uniform(-4, 4))
     return np.clip(out * alpha + beta, 0, 255).astype(np.uint8)
 
 
 def apply_condition(image: np.ndarray, condition: str, rng: np.random.Generator) -> np.ndarray:
     out = image.copy()
     if condition == "clean":
-        return adjust_color(out, rng, "clean")
+        return out
     if condition == "low_light":
-        return adjust_color(out, rng, "low_light")
+        return out
     if condition == "glare":
         h, w = out.shape[:2]
         mask = np.zeros((h, w), dtype=np.uint8)
         center = (int(rng.uniform(0.22, 0.78) * w), int(rng.uniform(0.18, 0.78) * h))
-        axes = (int(rng.uniform(0.10, 0.20) * w), int(rng.uniform(0.06, 0.15) * h))
+        axes = (int(rng.uniform(0.07, 0.15) * w), int(rng.uniform(0.04, 0.11) * h))
         cv2.ellipse(mask, center, axes, float(rng.uniform(-25, 25)), 0, 360, 255, -1)
         glow = cv2.GaussianBlur(mask, (0, 0), sigmaX=max(8, w * 0.04))
-        alpha = (glow.astype(np.float32) / 255.0)[:, :, None] * 0.65
+        alpha = (glow.astype(np.float32) / 255.0)[:, :, None] * 0.38
         return np.clip(out.astype(np.float32) * (1.0 - alpha) + 255.0 * alpha, 0, 255).astype(np.uint8)
     if condition == "blur":
-        return cv2.GaussianBlur(out, (7, 7), 0)
+        return cv2.GaussianBlur(out, (3, 3), 0)
     if condition == "noise":
-        noisy = out.astype(np.float32) + rng.normal(0, 13, out.shape).astype(np.float32)
+        noisy = out.astype(np.float32) + rng.normal(0, 7, out.shape).astype(np.float32)
         return np.clip(noisy, 0, 255).astype(np.uint8)
     if condition == "low_contrast":
         return adjust_color(out, rng, "low_contrast")
@@ -297,9 +297,9 @@ def apply_condition(image: np.ndarray, condition: str, rng: np.random.Generator)
         h, w = out.shape[:2]
         x1 = int(rng.uniform(0.18, 0.58) * w)
         y1 = int(rng.uniform(0.18, 0.58) * h)
-        x2 = min(w - 1, x1 + int(rng.uniform(0.14, 0.26) * w))
-        y2 = min(h - 1, y1 + int(rng.uniform(0.12, 0.24) * h))
-        color = int(rng.uniform(35, 95))
+        x2 = min(w - 1, x1 + int(rng.uniform(0.08, 0.16) * w))
+        y2 = min(h - 1, y1 + int(rng.uniform(0.08, 0.16) * h))
+        color = int(rng.uniform(55, 115))
         cv2.rectangle(out, (x1, y1), (x2, y2), (color, color, color), -1)
         return out
     return out
@@ -309,10 +309,10 @@ def make_tag_patch(device_id: str, scale: float = 1.0, thickness: int = 3) -> np
     font_scale = 1.16 * max(0.6, scale)
     thickness = max(2, int(thickness))
     (text_w, text_h), baseline = cv2.getTextSize(device_id, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
-    pad_x = 30
-    pad_y = 22
-    patch_w = max(220, text_w + pad_x * 2)
-    patch_h = max(88, text_h + baseline + pad_y * 2)
+    pad_x = 34
+    pad_y = 24
+    patch_w = max(250, text_w + pad_x * 2)
+    patch_h = max(96, text_h + baseline + pad_y * 2)
     patch = np.full((patch_h, patch_w, 3), 255, dtype=np.uint8)
     cv2.rectangle(patch, (0, 0), (patch_w - 1, patch_h - 1), (0, 0, 0), 3)
     x = (patch_w - text_w) // 2
@@ -350,10 +350,16 @@ def generate_variant(
     tag_scale: float,
     tag_thickness: int,
 ) -> np.ndarray:
-    out = affine_variant(base, rng, stronger=query)
-    if query or rng.random() < 0.35:
-        out = perspective_variant(out, rng, max_shift=0.04 if query else 0.022)
-    out = adjust_color(out, rng, condition if condition in {"low_light", "low_contrast"} else "clean")
+    out = base.copy()
+    if condition == "clean":
+        if not query or rng.random() < 0.25:
+            out = affine_variant(out, rng, stronger=False)
+    else:
+        out = affine_variant(out, rng, stronger=False)
+        if rng.random() < 0.35:
+            out = perspective_variant(out, rng, max_shift=0.018)
+    color_profile = condition if condition in {"low_light", "low_contrast"} else "clean"
+    out = adjust_color(out, rng, color_profile)
     out = apply_condition(out, condition, rng)
     if tag_visible:
         out = add_tag(out, device_id, rng, scale=tag_scale, thickness=tag_thickness)
@@ -504,7 +510,12 @@ def build_inventory(args: argparse.Namespace) -> Dict:
         per_condition_idx = {condition: 0 for condition in CONDITIONS}
         for condition in distribute_conditions(args.queries_per_device):
             per_condition_idx[condition] += 1
-            tag_visible = condition != "occluded" and rng.random() < args.tagged_query_ratio
+            if condition == "occluded":
+                tag_visible = False
+            elif condition in {"clean", "low_light"} and per_condition_idx[condition] == 1:
+                tag_visible = True
+            else:
+                tag_visible = rng.random() < args.tagged_query_ratio
             image = generate_variant(
                 crop.crop,
                 device_id,
@@ -554,7 +565,7 @@ def build_inventory(args: argparse.Namespace) -> Dict:
     write_csv(devices_path, devices_manifest)
     write_csv(queries_path, queries_manifest)
     metadata = {
-        "note": "Controlled proxy inventory benchmark for OCR/ReID/fusion mechanics. Not real industrial identity validation.",
+        "note": "Controlled proxy inventory benchmark for OCR/ReID/fusion mechanics. Clean samples use gentle augmentation; degraded samples use mild visual conditions. Not real industrial identity validation.",
         "zone_id": args.zone_id,
         "datasets": [str(path.relative_to(REPO_ROOT)) if path.is_relative_to(REPO_ROOT) else str(path) for path in dataset_roots],
         "generated_devices": [record["device_id"] for record in metadata_records],
@@ -598,8 +609,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-box-size", type=int, default=24)
     parser.add_argument("--crop-expand", type=float, default=0.45)
     parser.add_argument("--tagged-query-ratio", type=float, default=0.75)
-    parser.add_argument("--tag-scale", type=float, default=1.0)
-    parser.add_argument("--tag-thickness", type=int, default=3)
+    parser.add_argument("--tag-scale", type=float, default=1.15)
+    parser.add_argument("--tag-thickness", type=int, default=4)
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
 

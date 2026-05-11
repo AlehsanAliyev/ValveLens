@@ -51,6 +51,7 @@ The next milestone is `v0.3`, which means an identity-aware assistant that can a
 - metrics export and summarization CLIs
 - combined YOLO detection dataset under `data/detection/combined`
 - trained detector weights copied to `models/detector.pt`
+- expanded multiclass detector experiment under `data/detection/industrial_multiclass`, with separate weights at `models/detector_multiclass.pt`
 
 ## What is working now
 
@@ -74,6 +75,13 @@ These were recently rechecked from the codebase and current repo state:
 - trained detector class names resolve to:
   - `0: valve`
   - `1: gauge`
+- second expanded detector experiment exists separately from the runtime baseline:
+  - dataset: `data/detection/industrial_multiclass`
+  - weights: `models/detector_multiclass.pt`
+  - artifacts: `artifacts/detection_multiclass`
+  - current test mAP50: `0.4650`
+  - current test mAP50-95: `0.3252`
+  - status: exploratory thesis/future-product model, not the default backend detector
 
 ## What is only partially working
 
@@ -119,6 +127,7 @@ This is the short milestone view of what has been added so far. It is not meant 
 - CUDA YOLO baseline trained and validated
 - best detector weights copied to `models/detector.pt`
 - backend detector now resolves model path robustly and uses trained weights by default
+- a second oil/gas-oriented multiclass YOLO experiment was trained and evaluated without overwriting the stable valve/gauge baseline
 
 ### Milestone 4: identity and interaction improvements
 
