@@ -1,21 +1,24 @@
 # ValveLens Project Status
 
-Last updated: 2026-04-12
+Last updated: 2026-05-11
 
 This document is the single repo-level status note for ValveLens. Its job is simple: show what exists, what works, what was recently verified, and what is still incomplete so the project does not become hard to navigate.
 
 ## Current stage
 
-Current practical stage: `v0.2+`
+Current practical stage: `v0.3 controlled proxy identity validation`
 
 That means:
 
 - zone retrieval is real and populated
 - detector integration is real and now points to the trained YOLO weights
 - OCR, ReID, feedback, tracking, and policy are wired into the backend
-- identity is only partially operational because enrolled device data is still the main missing ingredient
+- the device inventory is populated for a controlled oil/gas proxy benchmark
+- device FAISS/ReID is populated and validated on proxy reference/query images
+- OCR is available through Tesseract on Windows, but OCR accuracy is still condition-sensitive
+- backend API identity acceptance has been verified on the proxy benchmark
 
-The next milestone is `v0.3`, which means an identity-aware assistant that can accept a device through OCR or retrieval, keep that identity across nearby frames, and produce meaningful experiment logs.
+The v0.3 milestone is now structurally closed for a controlled proxy benchmark. The remaining gap is external validation with repeated photos of real physical devices in real industrial scenes.
 
 ## What the system currently does
 
@@ -52,6 +55,7 @@ The next milestone is `v0.3`, which means an identity-aware assistant that can a
 - combined YOLO detection dataset under `data/detection/combined`
 - trained detector weights copied to `models/detector.pt`
 - expanded multiclass detector experiment under `data/detection/industrial_multiclass`, with separate weights at `models/detector_multiclass.pt`
+- oil/gas proxy inventory benchmark under `data/device_benchmark`
 
 ## What is working now
 
@@ -65,6 +69,7 @@ The next milestone is `v0.3`, which means an identity-aware assistant that can a
 - ReID top-match generation in the pipeline when device references exist
 - feedback storage and session-aware identity carryover helpers
 - metrics export and summary CLIs
+- controlled proxy identity benchmark enrollment, device FAISS rebuild, ReID validation, OCR validation, and API decision validation
 
 ### Recently verified
 
@@ -82,19 +87,39 @@ These were recently rechecked from the codebase and current repo state:
   - current test mAP50: `0.4650`
   - current test mAP50-95: `0.3252`
   - status: exploratory thesis/future-product model, not the default backend detector
+- v0.3 controlled proxy identity benchmark:
+  - devices: `11`
+  - device references: `184`
+  - device FAISS size: `184`
+  - query images: `120`
+  - missing query files: `0`
+  - ReID top-1 accuracy: `0.9917`
+  - ReID top-k accuracy: `0.9917`
+  - OCR backend: `tesseract`
+  - OCR visible-tag exact matches: `67/85` (`0.7882`)
+  - API evaluated images: `120`
+  - API accepted/deferred: `37/83`
+  - API errors: `0`
+  - at least one accepted decision: `true`
+  - evidence: `artifacts/identity_benchmark/identity_benchmark_summary.json`
+- v0.3 metrics export:
+  - exported task rows: `63`
+  - output: `backend/data/metrics_v03.csv`
+  - summary artifact: `artifacts/v03_demo/v03_identity_validation_report.md`
 
 ## What is only partially working
 
-- identity acceptance is implemented in code, but it depends on enrolled devices and reference images
+- identity acceptance is implemented and verified on a controlled proxy benchmark, but not yet validated with real repeated physical device photos
 - tap-select and confirm now help the current session more than before, but feedback still does not update the model itself
 - OCR works when text is visible and the OCR backend is available, but it is still sensitive to crop quality and tag visibility
-- ReID works structurally, but without a populated device index it cannot drive the live assistant meaningfully
+- ReID works with the populated proxy device index; real deployment confidence still depends on collecting real reference/query images
 - uncertainty policy is real, but some scores are still heuristic rather than calibrated probabilities
+- the first generated full-frame proxy scenes are useful as preview artifacts, but they did not yet produce accepted decisions because detector/quality evidence was weaker than tight crop benchmark evidence
 
 ## What is still missing
 
-- a populated `devices` and `device_refs` database for the real demo path
-- end-to-end identity validation with printed tags and live frames
+- repeated real-device reference and query images for external identity validation
+- end-to-end identity validation on real full-frame industrial-style scenes
 - a stable evaluation set with known ground-truth device identities
 - stronger session/task bookkeeping for more rigorous experiment analysis
 - a cleaned-up experiment log or changelog beyond this status note
@@ -139,6 +164,16 @@ This is the short milestone view of what has been added so far. It is not meant 
 - session-aware identity carryover helpers added
 - metrics export and summarization added
 
+### Milestone 5: v0.3 proxy identity closure
+
+- oil/gas proxy inventory benchmark generated from prepared industrial object crops
+- device manifest and query manifest populated under `data/device_benchmark`
+- 11 proxy devices enrolled with 184 reference images
+- device FAISS rebuilt with 184 vectors
+- OCR backend diagnosed and enabled through Tesseract
+- API validation run on 120 proxy query images with 37 accepted identity decisions
+- v0.3 closure artifacts saved under `artifacts/identity_benchmark` and `artifacts/v03_demo`
+
 ## What has been tested
 
 Current backend tests under `backend/app/tests`:
@@ -180,8 +215,11 @@ Known project-level data assets:
 - OpenLORIS-based zone ingestion pipeline is implemented and used as the public-dataset zone source
 - combined detection dataset exists under `data/detection/combined`
 - trained detector exists at `models/detector.pt`
+- controlled oil/gas proxy identity benchmark exists under `data/device_benchmark`
+- v0.3 identity benchmark outputs exist under `artifacts/identity_benchmark`
+- v0.3 closure report exists under `artifacts/v03_demo`
 
-Identity status depends on runtime DB contents. If `devices_count` or `device_refs_count` are zero in `/debug/status`, the identity part of the assistant is not populated yet even though the code path exists.
+Identity status now has a controlled proxy validation path. If `/debug/status` shows `devices_count`, `device_refs_count`, or `device_faiss_size` as zero in a fresh environment, rerun the manifest enrollment and device FAISS rebuild before testing identity.
 
 ## Recommended working habit
 

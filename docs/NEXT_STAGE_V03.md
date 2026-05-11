@@ -1,6 +1,6 @@
 # Next Stage: v0.3 Identity-Aware Assistant
 
-Last updated: 2026-04-12
+Last updated: 2026-05-11
 
 This document is the next-step runbook for ValveLens. It assumes the current repo already has:
 
@@ -8,7 +8,7 @@ This document is the next-step runbook for ValveLens. It assumes the current rep
 - the trained YOLO detector integrated at `models/detector.pt`
 - OCR, ReID, feedback, and session-aware helpers present in code
 
-The goal now is to make identity work end-to-end, not just structurally.
+The goal of v0.3 was to make identity work end-to-end, not just structurally. That path is now validated on a controlled oil/gas proxy benchmark, while real physical-device validation remains the next stronger evidence step.
 
 ## v0.3 goal
 
@@ -25,6 +25,27 @@ to:
   - maintain a confirmed device across nearby frames in the same session
   - export useful experiment metrics
 
+## Current v0.3 closure status
+
+Controlled proxy identity validation is complete enough for the v0.3 thesis/demo checkpoint:
+
+- devices: `11`
+- device references: `184`
+- device FAISS size: `184`
+- query images: `120`
+- ReID top-1 accuracy: `0.9917`
+- ReID top-k accuracy: `0.9917`
+- OCR backend: `tesseract`
+- OCR visible-tag exact matches: `67/85` (`0.7882`)
+- API evaluated images: `120`
+- API accepted/deferred: `37/83`
+- API errors: `0`
+- at least one accepted identity decision: `true`
+- metrics export: `backend/data/metrics_v03.csv`
+- closure report: `artifacts/v03_demo/v03_identity_validation_report.md`
+
+This is a controlled proxy benchmark result, not a final real-facility validation claim. It validates the enrollment, OCR, ReID, fusion/policy, API decision, and metrics-export mechanics.
+
 ## What must be true before v0.3 is considered real
 
 - `devices_count > 0`
@@ -33,6 +54,8 @@ to:
 - OCR accepts at least one enrolled printed tag correctly
 - ReID returns meaningful top matches for at least one enrolled device
 - feedback actions can be tied to a real session and observation history
+
+These criteria have been met for the controlled proxy benchmark. They still need to be repeated with real physical device references and full-frame query scenes for stronger deployment evidence.
 
 ## Concrete implementation order
 
@@ -53,7 +76,7 @@ This keeps detection evaluation and identity evaluation separate, which is impor
 
 If real repeated device images are not available yet, v0.3 can first be validated with the controlled proxy identity benchmark built by `scripts/build_proxy_device_benchmark.py`. That validates the mechanics of enrollment, OCR, ReID, fusion, and decision logging, but real device references remain the stronger final validation.
 
-Proxy identity should be considered structurally validated only when devices, reference images, device FAISS size, ReID top-k retrieval, OCR smoke testing, and at least one accepted inference path have all been checked. ReID-only success is an important milestone, but it is not the full v0.3 identity acceptance path.
+Proxy identity is now structurally validated: devices, reference images, device FAISS size, ReID top-k retrieval, OCR testing, and at least one accepted API inference path have all been checked. ReID-only success remains useful, but the current v0.3 evidence includes OCR-backed API acceptance as well.
 
 ### Step 1: populate the device database
 
@@ -209,6 +232,8 @@ v0.3 is complete when all of the following are true:
 - live sessions preserve identity better after confirm/tap-select feedback
 - metrics can be exported for a real interaction session
 
+For the current controlled proxy benchmark, the identity, API acceptance, and metrics-export criteria are satisfied. The remaining work is to repeat the same validation on real full-frame device photos, then use those results as the stronger external validation set.
+
 ## After v0.3
 
 Only after v0.3 is stable should the project move to:
@@ -218,3 +243,5 @@ Only after v0.3 is stable should the project move to:
 - calibrated uncertainty
 - better device datasets
 - any VLM-related work
+
+Immediate post-v0.3 priority: collect real physical device references and query images, then rerun `validate_identity_benchmark` and `/infer/image` validation without changing the runtime detector or replacing `models/detector.pt`.
