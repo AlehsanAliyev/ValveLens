@@ -6,8 +6,12 @@ Processed data is stored elsewhere:
 
 - zone embeddings and sqlite records: `backend/data/`
 - combined YOLO detector dataset: `data/detection/combined/`
+- expanded industrial detector staging: `data/detection/expanded_industrial/`
+- focused oil/gas detector staging: `data/detection/oilgas_expanded/`
 - detector training outputs: `runs/` and `artifacts/`
 - enrolled device references: `backend/data/devices/`
+
+For a compact dataset inventory, see `data_sources/DATASET_REGISTRY.md`.
 
 ## Local Datasets Present
 
@@ -184,6 +188,88 @@ ExDARK is available locally for qualitative low-light preprocessing tests:
 The current folders are organized by object category, for example `Bicycle`, `Boat`, `Bottle`, `Bus`, `Car`, `Cat`, `Chair`, `Cup`, `Dog`, `Motorbike`, `People`, and `Table`.
 
 Use this dataset for visual low-light enhancement examples and discussion. It is not used for valve/gauge detection metrics unless its annotations are parsed and mapped into the ValveLens label space later.
+
+## Hydraulic Components Detection
+
+Hydraulic Components Detection was staged as a small optional Roboflow dataset for expanded industrial detection experiments. It is not the main graduation-project dataset path now. Do not merge it into the current valve/gauge detector dataset and do not overwrite `models/detector.pt`.
+
+Source:
+
+```text
+https://universe.roboflow.com/nattapat-kieuvongngam-rup1a/hydraulic-components-detection
+```
+
+Local staging folders:
+
+```text
+data_sources/downloads/roboflow/hydraulic_components/
+data_sources/extracted/roboflow/hydraulic_components/
+data/detection/expanded_industrial/hydraulic_components/
+```
+
+Prepare after downloading the YOLOv8 export:
+
+```powershell
+cd d:\python_works\ValveLens
+python .\scripts\prepare_hydraulic_components_dataset.py --overwrite
+```
+
+If Roboflow is configured locally, the script can try automatic staging:
+
+```powershell
+python .\scripts\prepare_hydraulic_components_dataset.py --download --overwrite
+```
+
+This dataset is only for expanded detector experiments. It is not identity validation data.
+
+## Final Oil/Gas Expanded Dataset Path
+
+The focused graduation-project expansion is now tracked in:
+
+```text
+data_sources/DATASET_REGISTRY.md
+```
+
+The selected staging targets are:
+
+- Oil Refinery
+- Elementos Offshore
+- Object_detection_dataset by Anto, for WellHead/gauge/relay/valve
+- industrial-multilabel, selected classes only
+
+Local staging folders:
+
+```text
+data_sources/downloads/roboflow/oil_refinery/
+data_sources/extracted/roboflow/oil_refinery/
+data_sources/downloads/roboflow/elementos_offshore/
+data_sources/extracted/roboflow/elementos_offshore/
+data_sources/downloads/roboflow/wellhead_valve_gauge/
+data_sources/extracted/roboflow/wellhead_valve_gauge/
+data_sources/downloads/roboflow/industrial_multilabel/
+data_sources/extracted/roboflow/industrial_multilabel/
+```
+
+Prepared outputs:
+
+```text
+data/detection/oilgas_expanded/oil_refinery/
+data/detection/oilgas_expanded/elementos_offshore/
+data/detection/oilgas_expanded/wellhead_valve_gauge/
+data/detection/oilgas_expanded/industrial_multilabel/
+```
+
+Inspection commands:
+
+```powershell
+cd d:\python_works\ValveLens
+python .\scripts\prepare_oilgas_expanded_dataset.py --dataset oil_refinery --overwrite
+python .\scripts\prepare_oilgas_expanded_dataset.py --dataset elementos_offshore --overwrite
+python .\scripts\prepare_oilgas_expanded_dataset.py --dataset wellhead_valve_gauge --overwrite
+python .\scripts\prepare_oilgas_expanded_dataset.py --dataset industrial_multilabel --overwrite --max-images-per-class 200
+```
+
+This path is for detection only. It is not identity validation, not OCR validation, and not a reason to retrain before inspection.
 
 ## Storage Rules
 
