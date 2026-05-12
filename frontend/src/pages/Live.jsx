@@ -188,8 +188,9 @@ export default function Live() {
       const res = await askQuestion({
         question,
         session_id: activeSessionId,
-        obs_id: activeResponse.request_id,
-        selected_det_id: selectedDetectionId,
+        observation_id: activeResponse.request_id,
+        selected_detection_id: selectedDetectionId,
+        use_vlm: false,
       });
       setAskResult(res);
     } catch (err) {
@@ -275,6 +276,7 @@ export default function Live() {
           onAsk={handleAsk}
           askResult={askResult}
           askStatus={askStatus}
+          selectedDetectionId={selectedDetectionId}
         />
         <div className="panel">
           <div className="pill">System Status</div>

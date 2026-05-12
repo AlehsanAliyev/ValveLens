@@ -245,3 +245,5 @@ Only after v0.3 is stable should the project move to:
 - any VLM-related work
 
 Immediate post-v0.3 priority: collect real physical device references and query images, then rerun `validate_identity_benchmark` and `/infer/image` validation without changing the runtime detector or replacing `models/detector.pt`.
+
+For the interactive assistant layer that follows v0.3, use `docs/NEXT_STAGE_V05.md`.

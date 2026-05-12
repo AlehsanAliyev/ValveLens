@@ -84,6 +84,7 @@ export default function SidePanel({
   onAsk,
   askResult,
   askStatus,
+  selectedDetectionId,
 }) {
   const [question, setQuestion] = useState("");
   const zoneCandidates = response?.zone?.candidates || [];
@@ -177,6 +178,11 @@ export default function SidePanel({
         </div>
         <div>
           <div className="pill">Ask</div>
+          {selectedDetectionId && (
+            <div className="mono" style={{ marginTop: 8 }}>
+              selected detection: {selectedDetectionId}
+            </div>
+          )}
           <form onSubmit={handleAskSubmit} style={{ marginTop: 8 }}>
             <div className="field">
               <input
@@ -196,12 +202,27 @@ export default function SidePanel({
             <div className="mono" style={{ marginTop: 8 }}>{askStatus}</div>
           )}
           {askResult && (
-            <div className="mono" style={{ marginTop: 8 }}>
+            <div className="list" style={{ marginTop: 8 }}>
               <div>{askResult.answer}</div>
-              <div>
-                confidence: {(Number(askResult.confidence || 0) * 100).toFixed(0)}%
+              <div className="row" style={{ alignItems: "center" }}>
+                <span className="pill">{askResult.mode || "rule_based"}</span>
+                <span className="mono">
+                  confidence: {(Number(askResult.confidence || 0) * 100).toFixed(0)}%
+                </span>
               </div>
-              <div>action: {askResult.recommended_next_action}</div>
+              {askResult.evidence_used?.length > 0 && (
+                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                  {askResult.evidence_used.map((item) => (
+                    <span key={item} className="pill">{item}</span>
+                  ))}
+                </div>
+              )}
+              <div>
+                next: {askResult.recommended_next_action || "none"}
+              </div>
+              {askResult.uncertainty_reason && (
+                <div className="mono">uncertain: {askResult.uncertainty_reason}</div>
+              )}
             </div>
           )}
         </div>
