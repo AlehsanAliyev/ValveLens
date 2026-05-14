@@ -1,6 +1,6 @@
 # ValveLens Interactive Assistant
 
-Last updated: 2026-05-12
+Last updated: 2026-05-14
 
 This document describes the ValveLens v0.5 interactive assistant layer. The assistant is evidence-first: it answers user questions from structured ValveLens perception output instead of blindly guessing from an image.
 
@@ -86,6 +86,22 @@ The rule-based assistant currently handles:
 - `What tag did you read?`
 - `What are the top candidates?`
 
+## Demo validation
+
+The v0.5 assistant demo was validated against stored inference observations from the controlled proxy benchmark. The demo includes both:
+
+- an accepted identity observation, where `PG-45` was accepted through OCR-backed ValveLens evidence
+- an uncertain observation, where no detector boxes, OCR tag, or ReID candidates were available
+
+Artifacts:
+
+- `artifacts/v05_assistant_demo/assistant_demo_report.md`
+- `artifacts/v05_assistant_demo/assistant_demo_report.json`
+- `artifacts/v05_assistant_demo/example_questions.csv`
+- `artifacts/v05_assistant_demo/thesis_assistant_section.md`
+
+The demo was run with `use_vlm=true`, but VLM provider execution remained unavailable/disabled, so the route correctly fell back to `rule_based` answers.
+
 ## Frontend behavior
 
 The Live page side panel includes:
@@ -109,6 +125,7 @@ Current behavior:
 - if `assistant.enable_vlm` is `false`, the system uses the rule-based fallback
 - if credentials or model are missing, the system uses the rule-based fallback
 - provider execution is scaffolded but not enabled by default
+- demo validation confirms the fallback path returns usable answers when VLM is requested but unavailable
 
 Required prompt rule for future VLM provider execution:
 

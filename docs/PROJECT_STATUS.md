@@ -1,6 +1,6 @@
 # ValveLens Project Status
 
-Last updated: 2026-05-12
+Last updated: 2026-05-14
 
 This document is the single repo-level status note for ValveLens. Its job is simple: show what exists, what works, what was recently verified, and what is still incomplete so the project does not become hard to navigate.
 
@@ -18,6 +18,7 @@ That means:
 - OCR is available through Tesseract on Windows, but OCR accuracy is still condition-sensitive
 - backend API identity acceptance has been verified on the proxy benchmark
 - evidence-aware `/ask` interaction is implemented with rule-based answers and VLM fallback scaffolding
+- v0.5 assistant demo artifacts have been generated from accepted and uncertain observations
 
 The v0.3 milestone is structurally closed for a controlled proxy benchmark. v0.5 adds an interactive assistant layer that answers from ValveLens evidence instead of blind image guessing.
 
@@ -114,10 +115,12 @@ These were recently rechecked from the codebase and current repo state:
   - evidence module: `backend/app/evidence.py`
   - ask route: `backend/app/routes/ask.py`
   - VLM scaffold: `backend/app/vlm_assistant.py`
+  - demo CLI: `backend/app/cli/demo_assistant_queries.py`
   - frontend question UI: `frontend/src/components/SidePanel.jsx`
   - mode: rule-based by default, VLM disabled in config
   - backend tests: `18 passed`
   - frontend build: passed
+  - demo artifacts: `artifacts/v05_assistant_demo`
 
 ## What is only partially working
 
@@ -195,6 +198,7 @@ This is the short milestone view of what has been added so far. It is not meant 
 - rule-based answers implemented first for reliability and testing
 - VLM assistant scaffold added, but provider execution remains disabled by default
 - Live frontend side panel now shows answer mode, evidence chips, recommended next action, and uncertainty reason
+- scripted assistant demo validates accepted and uncertain observations through `/ask`
 
 ## What has been tested
 

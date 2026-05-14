@@ -325,12 +325,21 @@ def answer_from_evidence(question: str, evidence: Dict[str, Any]) -> Dict[str, A
     elif "candidate" in q or "top" in q:
         parts = []
         for det in detections:
+            fused_id = det.get("fusion", {}).get("device_id")
+            ocr_ids = det.get("ocr", {}).get("parsed_device_ids") or []
             matches = det.get("reid", {}).get("top_k", [])[:3]
+            evidence_parts = []
+            if fused_id:
+                evidence_parts.append(f"fused={fused_id}")
+            if ocr_ids:
+                evidence_parts.append("ocr=" + ",".join(ocr_ids))
             if matches:
-                parts.append(
-                    f"{det.get('det_id')}: "
+                evidence_parts.append(
+                    "reid="
                     + ", ".join(f"{m.get('device_id')} ({m.get('score')})" for m in matches)
                 )
+            if evidence_parts:
+                parts.append(f"{det.get('det_id')}: " + "; ".join(evidence_parts))
         answer = "Top candidates: " + " | ".join(parts) if parts else "No ReID candidates are available."
         evidence_used = _evidence_used("reid", "detections")
     elif "why" in q and ("uncertain" in q or "not sure" in q):
@@ -364,8 +373,14 @@ def answer_from_evidence(question: str, evidence: Dict[str, Any]) -> Dict[str, A
         evidence_used = _evidence_used("zone", "detections", "ocr", "reid")
     elif "which" in q and ("device" in q or "visible" in q):
         ids = evidence.get("visible_device_ids") or []
-        if ids:
-            answer = "Visible device candidates: " + ", ".join(ids) + "."
+        accepted_id = (selected_device or {}).get("device_id")
+        if accepted_id:
+            other_ids = [item for item in ids if item != accepted_id]
+            answer = f"Accepted visible device: {accepted_id}."
+            if other_ids:
+                answer += " Other evidence candidates: " + ", ".join(other_ids) + "."
+        elif ids:
+            answer = "Visible device candidates, not accepted identities: " + ", ".join(ids) + "."
         elif detections:
             classes = ", ".join(
                 sorted({str(det.get("class_name")) for det in detections if det.get("class_name")})
