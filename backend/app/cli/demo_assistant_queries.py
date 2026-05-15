@@ -13,14 +13,14 @@ from app.routes.ask import AskRequest, ask
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUT = REPO_ROOT / "artifacts" / "v05_assistant_demo"
-DEFAULT_QUESTIONS = [
+DEFAULT_TARGET_DEVICE_ID = "V-1023"
+BASE_QUESTIONS = [
     "What is this?",
-    "Where is this?",
+    "Where is {target_device_id}?",
     "Why are you uncertain?",
     "What should I do next?",
     "Which devices are visible?",
     "What tag did you read?",
-    "What are the top candidates?",
 ]
 
 
@@ -140,6 +140,7 @@ def _write_markdown(path: Path, payload: Dict[str, Any]) -> None:
         "",
     ]
     for row in rows:
+        vlm_status = (row.get("raw_response") or {}).get("vlm_status")
         lines.extend(
             [
                 f"### {row['question']}",
@@ -149,6 +150,7 @@ def _write_markdown(path: Path, payload: Dict[str, Any]) -> None:
                 f"- evidence_used: `{', '.join(row.get('evidence_used') or [])}`",
                 f"- recommended_next_action: `{row.get('recommended_next_action')}`",
                 f"- uncertainty_reason: `{row.get('uncertainty_reason') or ''}`",
+                f"- vlm_status: `{vlm_status or ''}`",
                 "",
                 row.get("answer") or "",
                 "",
@@ -158,20 +160,54 @@ def _write_markdown(path: Path, payload: Dict[str, Any]) -> None:
 
 
 def _write_thesis_section(path: Path, payload: Dict[str, Any]) -> None:
+    rows = payload.get("questions") or []
+    examples = []
+    for row in rows[:6]:
+        examples.extend(
+            [
+                f"### {row.get('question')}",
+                "",
+                row.get("answer") or "",
+                "",
+                f"Evidence used: `{', '.join(row.get('evidence_used') or [])}`.",
+                "",
+            ]
+        )
     lines = [
         "# Thesis Section: Evidence-Aware Interactive Assistant",
         "",
-        "ValveLens v0.5 adds an interactive assistant layer on top of the perception pipeline. The assistant does not replace the detector, OCR, ReID, fusion module, or uncertainty policy. Instead, it converts the latest inference observation into structured evidence and answers operator questions from that evidence.",
+        "## Evidence-aware assistant design",
         "",
-        "The assistant supports deterministic rule-based answers for reliability. A VLM pathway is scaffolded, but it is gated by configuration and environment credentials. The VLM is required to use the same structured ValveLens evidence and is not allowed to invent device IDs, locations, or confidence values.",
+        "ValveLens v0.5.1 adds an interactive assistant layer on top of the perception pipeline. The assistant does not replace the detector, OCR, ReID, fusion module, or uncertainty policy. It converts the latest stored inference observation into compact structured evidence and answers operator questions from that evidence.",
         "",
-        "The demo queries exercise common operator questions: object identity, current location, visible devices, uncertainty reasons, next recommended action, OCR text, and ReID candidates. This makes the assistant suitable for thesis demonstration because every answer can be traced back to explicit perception evidence.",
+        "The evidence object includes zone candidates, detections, image-space boxes, detector confidence, OCR text, parsed device IDs, ReID matches, fused identity, final decision status, uncertainty reasons, image-quality diagnostics, and optional user selection context.",
         "",
-        "Current limitations are that VLM provider execution is disabled by default, location descriptions are based on image-space detection boxes rather than calibrated facility coordinates, and final deployment validation still requires real full-frame industrial images with known device identities.",
+        "## Rule-based mode",
         "",
-        "Safe claim: ValveLens implements an evidence-aware assistant interface that can explain current perception results and uncertainty using structured backend evidence.",
+        "The default assistant is deterministic and rule-based. This is the thesis/demo reliability path because each answer can be traced to explicit fields in the observation: decision, detections, OCR, ReID, quality, and zone evidence. When evidence is weak, the assistant reports uncertainty and returns the same next action produced by the ValveLens policy.",
         "",
-        "Unsafe claim: the assistant should not be described as a blind visual-language model that independently recognizes industrial devices from raw images.",
+        "## VLM-gated mode",
+        "",
+        "A VLM pathway exists as a scaffold, but provider execution is gated by `backend/app/config.yaml` and environment credentials. The default configuration keeps `assistant.enable_vlm: false`. If VLM use is requested without a configured provider, the route falls back to rule-based answers and records the VLM status in the response.",
+        "",
+        "## Why the VLM does not replace perception",
+        "",
+        "A VLM is allowed only to explain ValveLens evidence in natural language. It must not invent device IDs, override an `UNCERTAIN` policy decision, claim calibrated confidence, or identify devices outside the enrolled evidence. The source of truth remains the perception stack: zone retrieval, detector, OCR, ReID, fusion, and policy.",
+        "",
+        "## Example questions and answers",
+        "",
+        *examples,
+        "## Limitations",
+        "",
+        "- Location is image-relative unless the scene has calibrated facility coordinates.",
+        "- VLM provider execution is disabled by default and has not been used as a source of perception evidence.",
+        "- Identity acceptance is validated on a controlled proxy benchmark, not on real repeated physical device photos.",
+        "- OCR remains condition-sensitive and depends on a working local OCR backend.",
+        "- ReID is retrieval-based and depends on representative enrolled references.",
+        "",
+        "Safe thesis claim: ValveLens implements an evidence-aware assistant interface that explains current perception results and uncertainty from structured backend evidence.",
+        "",
+        "Unsafe thesis claim: the assistant should not be described as a blind visual-language model that independently recognizes industrial devices from raw images.",
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -185,7 +221,9 @@ def main() -> None:
     parser.add_argument("--backend-url", default=None)
     parser.add_argument("--out", default=str(DEFAULT_OUT))
     parser.add_argument("--use-vlm", action="store_true")
-    parser.add_argument("--questions", nargs="*", default=DEFAULT_QUESTIONS)
+    parser.add_argument("--target-device-id", default=DEFAULT_TARGET_DEVICE_ID)
+    parser.add_argument("--include-candidates", action="store_true")
+    parser.add_argument("--questions", nargs="*", default=None)
     args = parser.parse_args()
 
     db.init_db()
@@ -197,9 +235,15 @@ def main() -> None:
     if not observation_ids:
         raise SystemExit("No observation found. Run inference first or pass --observation-id.")
 
+    questions = args.questions or [
+        item.format(target_device_id=args.target_device_id) for item in BASE_QUESTIONS
+    ]
+    if args.include_candidates:
+        questions.append("What are the top candidates?")
+
     rows: List[Dict[str, Any]] = []
     for observation_id in observation_ids:
-        for question in args.questions:
+        for question in questions:
             if args.backend_url:
                 response = _post_ask(
                     args.backend_url,
@@ -254,7 +298,7 @@ def main() -> None:
     _write_markdown(out_dir / "assistant_demo_report.md", payload)
     _write_thesis_section(out_dir / "thesis_assistant_section.md", payload)
 
-    print(f"Observation: {observation_id}")
+    print(f"Observations: {', '.join(observation_ids)}")
     print(f"Report: {out_dir / 'assistant_demo_report.md'}")
     print(f"JSON: {out_dir / 'assistant_demo_report.json'}")
     print(f"CSV: {out_dir / 'example_questions.csv'}")

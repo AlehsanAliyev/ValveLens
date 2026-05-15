@@ -1,12 +1,12 @@
 # ValveLens Project Status
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15
 
 This document is the single repo-level status note for ValveLens. Its job is simple: show what exists, what works, what was recently verified, and what is still incomplete so the project does not become hard to navigate.
 
 ## Current stage
 
-Current practical stage: `v0.5 interactive assistant mode started`
+Current practical stage: `v0.5.1 final thesis/demo package prepared`
 
 That means:
 
@@ -18,9 +18,10 @@ That means:
 - OCR is available through Tesseract on Windows, but OCR accuracy is still condition-sensitive
 - backend API identity acceptance has been verified on the proxy benchmark
 - evidence-aware `/ask` interaction is implemented with rule-based answers and VLM fallback scaffolding
-- v0.5 assistant demo artifacts have been generated from accepted and uncertain observations
+- v0.5 assistant demo artifacts have been regenerated from accepted and uncertain observations
+- final thesis/demo result summaries are collected under `artifacts/final_results`
 
-The v0.3 milestone is structurally closed for a controlled proxy benchmark. v0.5 adds an interactive assistant layer that answers from ValveLens evidence instead of blind image guessing.
+The v0.3 milestone is closed for a controlled proxy benchmark. v0.5 adds an interactive assistant layer that answers from ValveLens evidence instead of blind image guessing. v0.5.1 packages the final thesis/demo outputs without adding datasets, retraining YOLO, replacing `models/detector.pt`, integrating runtime preprocessing, or hardcoding API keys.
 
 ## What the system currently does
 
@@ -80,7 +81,7 @@ The v0.3 milestone is structurally closed for a controlled proxy benchmark. v0.5
 
 These were recently rechecked from the codebase and current repo state:
 
-- backend test suite: `10 passed`
+- backend test suite: `18 passed`
 - detector backend integration utility loads the trained detector from `models/detector.pt`
 - trained detector class names resolve to:
   - `0: valve`
@@ -121,6 +122,7 @@ These were recently rechecked from the codebase and current repo state:
   - backend tests: `18 passed`
   - frontend build: passed
   - demo artifacts: `artifacts/v05_assistant_demo`
+  - final summaries: `artifacts/final_results`
 
 ## What is only partially working
 
@@ -200,6 +202,20 @@ This is the short milestone view of what has been added so far. It is not meant 
 - Live frontend side panel now shows answer mode, evidence chips, recommended next action, and uncertainty reason
 - scripted assistant demo validates accepted and uncertain observations through `/ask`
 
+### Milestone 7: v0.5.1 final thesis/demo package
+
+- assistant demo CLI aligned with the final question set:
+  - `What is this?`
+  - `Where is V-1023?`
+  - `Which devices are visible?`
+  - `Why are you uncertain?`
+  - `What should I do next?`
+  - `What tag did you read?`
+- assistant artifacts regenerated under `artifacts/v05_assistant_demo`
+- thesis assistant section expanded with rule-based and VLM-gated design notes
+- final result summaries collected under `artifacts/final_results`
+- README and v0.5 docs updated for final claim boundaries
+
 ## What has been tested
 
 Current backend tests under `backend/app/tests`:
@@ -271,3 +287,7 @@ If you are about to continue identity validation, read:
 If you are about to continue interactive assistant work, read:
 
 - `docs/NEXT_STAGE_V05.md`
+
+For final thesis/demo evidence, start with:
+
+- `artifacts/final_results/README.md`

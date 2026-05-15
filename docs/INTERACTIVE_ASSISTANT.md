@@ -1,8 +1,8 @@
 # ValveLens Interactive Assistant
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15
 
-This document describes the ValveLens v0.5 interactive assistant layer. The assistant is evidence-first: it answers user questions from structured ValveLens perception output instead of blindly guessing from an image.
+This document describes the ValveLens v0.5.1 interactive assistant layer. The assistant is evidence-first: it answers user questions from structured ValveLens perception output instead of blindly guessing from an image.
 
 ## Design rule
 
@@ -78,17 +78,17 @@ Example response:
 The rule-based assistant currently handles:
 
 - `What is this?`
-- `Where is this?`
 - `Where is V-1023?`
 - `Which devices are visible?`
 - `Why are you uncertain?`
 - `What should I do next?`
 - `What tag did you read?`
-- `What are the top candidates?`
+
+The demo CLI can also include `What are the top candidates?` with `--include-candidates`.
 
 ## Demo validation
 
-The v0.5 assistant demo was validated against stored inference observations from the controlled proxy benchmark. The demo includes both:
+The v0.5.1 assistant demo was validated against stored inference observations from the controlled proxy benchmark. The demo includes both:
 
 - an accepted identity observation, where `PG-45` was accepted through OCR-backed ValveLens evidence
 - an uncertain observation, where no detector boxes, OCR tag, or ReID candidates were available
@@ -100,7 +100,14 @@ Artifacts:
 - `artifacts/v05_assistant_demo/example_questions.csv`
 - `artifacts/v05_assistant_demo/thesis_assistant_section.md`
 
-The demo was run with `use_vlm=true`, but VLM provider execution remained unavailable/disabled, so the route correctly fell back to `rule_based` answers.
+The final CLI run used the local route call in default rule-based mode. VLM provider execution remains unavailable/disabled by default; if `--use-vlm` is requested without provider configuration, the route falls back to `rule_based` answers and reports `vlm_status`.
+
+Demo command:
+
+```powershell
+cd D:\python_works\ValveLens\backend
+python -m app.cli.demo_assistant_queries --observation-ids 3fa6485b-b5a1-43c0-b0cf-9a167495bb26 80a89ea6-6e33-4ea1-9824-661171ce8b72 --out ..\artifacts\v05_assistant_demo
+```
 
 ## Frontend behavior
 

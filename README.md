@@ -8,14 +8,14 @@ The project is built around a simple research position:
 
 ValveLens therefore treats perception as a composed evidence pipeline rather than a single detector call. It combines scene context, object detection, OCR, retrieval-based identity, quality diagnostics, score fusion, and an uncertainty policy. When evidence is strong, the system can accept an identity. When evidence is weak, it defers and asks for user interaction instead of pretending to know.
 
-Current practical stage: `v0.2+`, moving toward `v0.3 identity-aware assistant`.
+Current practical stage: `v0.5.1 final thesis/demo package`.
 
 ## Current Status
 
 The repository is no longer a `v0.1` skeleton. The current implementation includes:
 
 - FastAPI backend with image, video, webcam, feedback, debug, devices, zones, and ask routes
-- React/Vite frontend with live image/webcam/video workflows, overlays, side-panel evidence, feedback, and a small rule-based question interface
+- React/Vite frontend with live image/webcam/video workflows, overlays, side-panel evidence, feedback, and an evidence-aware question interface
 - trained YOLOv8 valve/gauge detector at `models/detector.pt`
 - OpenCLIP embeddings plus FAISS for zone retrieval and device ReID-style retrieval
 - SQLite metadata store for zones, keyframes, devices, references, observations, and feedback
@@ -25,8 +25,9 @@ The repository is no longer a `v0.1` skeleton. The current implementation includ
 - metrics export and summarization tools
 - robustness preprocessing experiment module
 - manifest-based device identity benchmark workflow
-- proxy device identity benchmark generated from the detector dataset
-- structured evidence layer for future VLM-assisted explanations
+- controlled proxy device identity benchmark generated from the detector dataset
+- structured evidence layer for rule-based assistant answers and future VLM-gated explanations
+- final v0.5.1 thesis/demo summaries under `artifacts/final_results`
 
 Most recent local benchmark state:
 
@@ -35,15 +36,16 @@ Most recent local benchmark state:
 | Detector | Trained YOLOv8 model integrated at `models/detector.pt` |
 | Detector classes | `valve`, `gauge` |
 | Original detector mAP50 | about `0.870` in the latest robustness artifact |
-| Proxy devices | `3` devices: `V-1023`, `V-2040`, `PG-45` |
-| Proxy refs | `24` reference images |
-| Proxy queries | `36` query images |
-| Device FAISS | `24` indexed device references |
-| Proxy ReID | latest manifest validation about `0.944` top-1/top-k |
-| ReID smoke test | `V-1023` returns top-1 `V-1023`, score about `0.991` |
-| OCR | environment-blocked if `tesseract.exe` is missing or EasyOCR is unavailable |
-| API acceptance | current tight proxy crops defer all API queries; full-frame proxy scenes or real scenes are still needed |
-| Backend tests | `10 passed` in the latest local run |
+| Proxy devices | `11` controlled proxy devices |
+| Proxy refs | `184` reference images |
+| Proxy queries | `120` query images |
+| Device FAISS | `184` indexed device references |
+| Proxy ReID | `0.9917` top-1/top-k |
+| OCR | Tesseract-backed visible-tag exact match `67/85` (`0.7882`) |
+| API acceptance | `37` accepted and `83` deferred of `120`, with `0` API errors |
+| Assistant | Rule-based `/ask` answers generated for accepted and uncertain observations |
+| Backend tests | `18 passed` in the latest documented run |
+| Frontend build | Passed in the latest documented run |
 
 Important: the proxy benchmark validates the identity pipeline mechanically. It does not prove final real industrial identity accuracy. Real repeated images of physical devices are still needed for stronger external validation.
 
@@ -425,28 +427,29 @@ Latest local identity artifact: `artifacts/identity_benchmark/identity_benchmark
 
 | Metric | Value |
 | --- | ---: |
-| devices | `3` |
-| device refs | `24` |
-| device FAISS size | `24` |
-| total query images | `36` |
+| devices | `11` |
+| device refs | `184` |
+| device FAISS size | `184` |
+| total query images | `120` |
 | missing files | `0` |
 | expected devices missing | `0` |
-| ReID top-1 accuracy | `0.944` |
-| ReID top-k accuracy | `0.944` |
-| visible tag images | `26` |
-| OCR attempted images | `0` |
-| OCR status | `unavailable` |
-| API evaluated images | `36` |
-| API accepted | `0` |
-| API deferred | `36` |
+| ReID top-1 accuracy | `0.9917` |
+| ReID top-k accuracy | `0.9917` |
+| visible tag images | `85` |
+| OCR visible-tag exact matches | `67/85` (`0.7882`) |
+| OCR status | `tested_with_matches` |
+| API evaluated images | `120` |
+| API accepted | `37` |
+| API deferred | `83` |
+| API errors | `0` |
 
-The OCR result should not be interpreted as an OCR algorithm failure. The current environment reports that `pytesseract` imports, but `tesseract.exe` is missing from PATH and EasyOCR is unavailable. Install/configure an OCR backend before reporting OCR exact-match rate.
+The OCR result is condition-sensitive: readable tags work in many controlled proxy images, but misses still occur under degradation, occlusion, or difficult crops.
 
-The API result should also be interpreted carefully. The proxy query images are tight crops. The full runtime API expects normal scene evidence, including detector and zone context. Full-frame proxy scenes or real captured device scenes are the next step for an accepted API/Live path.
+The API result should be interpreted as controlled proxy validation. Full-frame real-device validation is still required before making deployment claims.
 
 ## Structured Evidence and Ask Interface
 
-ValveLens includes an intermediate evidence layer for future interactive assistant work. This is deliberately rule-based for now.
+ValveLens includes an intermediate evidence layer for interactive assistant work. The final v0.5.1 demo uses deterministic rule-based answers by default, with a VLM scaffold gated behind configuration and credentials.
 
 ```mermaid
 flowchart TD
@@ -460,7 +463,7 @@ flowchart TD
     H[Raw image] -. not direct source of truth .-> F
 ```
 
-The future VLM should not replace the perception pipeline. It should receive ValveLens evidence:
+The VLM path should not replace the perception pipeline. It should receive ValveLens evidence:
 
 - zone candidates
 - detections
@@ -473,6 +476,15 @@ The future VLM should not replace the perception pipeline. It should receive Val
 - uncertainty reasons
 
 Then it may explain the result in natural language. It should not invent a device ID that is not supported by OCR, ReID, fusion, or the enrolled database.
+
+Final assistant artifacts:
+
+```text
+artifacts/v05_assistant_demo/assistant_demo_report.md
+artifacts/v05_assistant_demo/assistant_demo_report.json
+artifacts/v05_assistant_demo/example_questions.csv
+artifacts/v05_assistant_demo/thesis_assistant_section.md
+```
 
 ## Repository Structure
 
@@ -750,40 +762,49 @@ This history matters because ValveLens has moved from a broad prototype to a mor
 6. add feedback and metrics
 7. add robustness experiments
 8. add device identity benchmark tooling
-9. validate proxy ReID and expose current OCR/API blockers honestly
+9. validate proxy ReID and API identity acceptance
+10. add evidence-aware `/ask` interaction
+11. package final v0.5.1 thesis/demo artifacts
 
-## Current v0.3 Blockers
+## Final v0.5.1 Package
 
-The next milestone is an identity-aware assistant that can identify enrolled devices using OCR and/or ReID, preserve identity across nearby frames, and export useful experiment metrics.
+Final thesis/demo summaries are collected here:
 
-Remaining blockers:
+```text
+artifacts/final_results/README.md
+artifacts/final_results/identity_validation_summary.md
+artifacts/final_results/assistant_summary.md
+artifacts/final_results/detector_summary.md
+artifacts/final_results/robustness_summary.md
+```
 
-1. OCR backend setup on Windows
-   - `pytesseract` package is installed, but `tesseract.exe` is missing unless configured locally.
-   - Run `python -m app.cli.check_ocr_backend`.
+Regenerate the assistant demo:
 
-2. API accepted identity path
-   - proxy ReID works on tight crops
-   - current API validation on those crops defers all images
-   - next step is full-frame proxy scenes or real captured scenes with normal detector and zone evidence
+```powershell
+cd D:\python_works\ValveLens\backend
+python -m app.cli.demo_assistant_queries --observation-ids 3fa6485b-b5a1-43c0-b0cf-9a167495bb26 80a89ea6-6e33-4ea1-9824-661171ce8b72 --out ..\artifacts\v05_assistant_demo
+```
 
-3. Real identity validation
+## Remaining Work
+
+The final v0.5.1 demo package is ready for thesis use, but these remain future work:
+
+1. Real identity validation
    - proxy benchmark is useful but synthetic
    - final validation needs repeated photos of physical devices with separate refs and queries
 
-## Recommended Next Task
+2. Full-frame real-scene validation
+   - the controlled proxy API benchmark has accepted examples
+   - live deployment claims need full-frame scenes with known device identity
 
-The most practical next implementation task is:
+3. VLM provider execution
+   - the scaffold exists and is gated
+   - credentials and model settings must stay outside git
+   - future tests should verify that the VLM does not invent unsupported device IDs
 
-> Add a full-frame proxy scene generator that places proxy device crops into scene-like backgrounds, preserves ground-truth device IDs, and allows `/infer/image` to produce normal detector, OCR, ReID, fusion, and policy evidence.
-
-Why this is the right next step:
-
-- ReID already works on proxy crops
-- OCR can be tested after Tesseract is installed
-- the API currently defers tight crops because they are not natural runtime inputs
-- full-frame proxy scenes bridge the gap between crop benchmark and live assistant behavior
-- it keeps the architecture unchanged
+4. UI evidence capture
+   - capture accepted and uncertain Ask-panel screenshots for the thesis
+   - record a short browser-level demo if needed for presentation
 
 ## Documentation Map
 
@@ -794,10 +815,13 @@ Read these when continuing work:
 | `docs/AGENT_CONTEXT_PACK.md` | compact handoff for new agents |
 | `docs/PROJECT_STATUS.md` | current status and milestone timeline |
 | `docs/NEXT_STAGE_V03.md` | v0.3 runbook |
+| `docs/NEXT_STAGE_V05.md` | v0.5/v0.5.1 assistant packaging notes |
 | `docs/DEVICE_IDENTITY_BENCHMARK.md` | identity benchmark design and commands |
 | `docs/ROBUSTNESS_PREPROCESSING.md` | restoration/preprocessing experiments |
-| `docs/INTERACTIVE_ASSISTANT_PLAN.md` | evidence-aware ask/VLM direction |
+| `docs/INTERACTIVE_ASSISTANT.md` | implemented evidence-aware ask interface |
+| `docs/INTERACTIVE_ASSISTANT_PLAN.md` | earlier evidence-aware ask/VLM direction |
 | `data_sources/README_DATASETS.md` | local dataset inventory and import notes |
+| `artifacts/final_results/README.md` | final thesis/demo result package |
 
 ## Storage Rules
 
