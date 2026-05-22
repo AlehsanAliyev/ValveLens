@@ -118,3 +118,21 @@ export async function askQuestion(payload) {
   });
   return handleResponse(res);
 }
+
+export async function listDemoSamples() {
+  const res = await fetch(`${API_BASE}/demo/samples`);
+  return handleResponse(res);
+}
+
+export async function inferDemoSample(path) {
+  const res = await fetch(`${API_BASE}/demo/infer_sample`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  return handleResponse(res);
+}
+
+export function demoSampleUrl(path) {
+  return `${API_BASE}/demo/sample_file?path=${encodeURIComponent(path)}`;
+}

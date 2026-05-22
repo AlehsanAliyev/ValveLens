@@ -141,7 +141,7 @@ def _uncertainty_reasons(payload: Dict[str, Any], thresholds: Dict[str, Any]) ->
     if not zone_top1 or float(zone_top1.get("score") or 0.0) < float(thresholds["tau_zone"]):
         reasons.append("zone confidence is below threshold")
     if quality.get("is_blurry"):
-        reasons.append("blur score is below threshold")
+        reasons.append("blurry: blur score is below threshold")
     if quality.get("is_low_light"):
         reasons.append("image appears low-light")
 
@@ -398,6 +398,15 @@ def answer_from_evidence(question: str, evidence: Dict[str, Any]) -> Dict[str, A
         else:
             answer = "No devices are confidently visible in the current frame."
         evidence_used = _evidence_used("detections", "ocr", "reid", "fusion")
+    elif "what do you see" in q or "describe" in q or "scene" in q:
+        if detections:
+            classes = ", ".join(
+                sorted({str(det.get("class_name") or det.get("display_class")) for det in detections})
+            )
+            answer = f"Rule-based evidence sees detector candidates: {classes}. Exact identity still requires OCR/ReID/fusion evidence."
+        else:
+            answer = "The rule-based assistant cannot visually inspect pixels when the detector has no boxes. Try VLM description or select a clearer demo image."
+        evidence_used = _evidence_used("detections", "decision", "quality")
     elif "what" in q or "this" in q or "identify" in q:
         if selected_device:
             answer = f"This is likely {selected_device.get('device_id')}. ValveLens accepted this identity from the available OCR/ReID evidence."
@@ -408,7 +417,7 @@ def answer_from_evidence(question: str, evidence: Dict[str, Any]) -> Dict[str, A
             if fused_id:
                 answer = f"The selected {cls} candidate may be {fused_id}, but identity has not been accepted yet."
             else:
-            answer = f"The selected object appears to be a {cls}, but exact identity is uncertain."
+                answer = f"The selected object appears to be a {cls}, but exact identity is uncertain."
             evidence_used = _evidence_used("selected_detection", "detector", "ocr", "reid", "fusion")
         elif detections:
             classes = ", ".join(

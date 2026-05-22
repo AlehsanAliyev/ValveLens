@@ -1,6 +1,6 @@
 # ValveLens Project Status
 
-Last updated: 2026-05-15
+Last updated: 2026-05-22
 
 This document is the single repo-level status note for ValveLens. Its job is simple: show what exists, what works, what was recently verified, and what is still incomplete so the project does not become hard to navigate.
 
@@ -18,6 +18,10 @@ That means:
 - OCR is available through Tesseract on Windows, but OCR accuracy is still condition-sensitive
 - backend API identity acceptance has been verified on the proxy benchmark
 - evidence-aware `/ask` interaction is implemented with rule-based answers and VLM fallback scaffolding
+- image inference audit tooling now diagnoses detector, quality, OCR, ReID, fusion, and policy causes for weak demo outputs
+- class-name display now preserves detector model names, so expanded classes such as `pipe`, `flange`, or `tank` do not silently become `unknown`
+- ReID candidates are grouped by unique `device_id` before ambiguity checks, so repeated references for one device do not create false ambiguity
+- VLM visual-understanding mode is implemented behind config/env gates and remains disabled by default
 - v0.5 assistant demo artifacts have been regenerated from accepted and uncertain observations
 - final thesis/demo result summaries are collected under `artifacts/final_results`
 
@@ -47,6 +51,9 @@ The v0.3 milestone is closed for a controlled proxy benchmark. v0.5 adds an inte
 - webcam, image, and video workflows
 - overlay rendering for detections
 - side panel for zone candidates, decision text, OCR, and device evidence
+- grouped ReID display and bullet decision reasons
+- Assistant / Visual Understanding card with Ask and Describe Image actions
+- local demo sample picker for reliable upload examples
 - feedback actions for confirm, wrong, and tap-select
 - question input and answer panel for evidence-aware assistant responses
 - system status widget using `/debug/status`
@@ -76,6 +83,9 @@ The v0.3 milestone is closed for a controlled proxy benchmark. v0.5 adds an inte
 - metrics export and summary CLIs
 - controlled proxy identity benchmark enrollment, device FAISS rebuild, ReID validation, OCR validation, and API decision validation
 - structured evidence extraction and rule-based `/ask` answers for common operator questions
+- audit CLI: `python -m app.cli.audit_inference_image --image PATH --model models\detector.pt --also-model models\detector_multiclass.pt`
+- VLM diagnostics: `python -m app.cli.check_vlm_backend`
+- VLM smoke fallback: `python -m app.cli.smoke_vlm_assistant --image PATH --question "What do you see in this image?" --use-vlm`
 
 ### Recently verified
 
@@ -119,8 +129,8 @@ These were recently rechecked from the codebase and current repo state:
   - demo CLI: `backend/app/cli/demo_assistant_queries.py`
   - frontend question UI: `frontend/src/components/SidePanel.jsx`
   - mode: rule-based by default, VLM disabled in config
-  - backend tests: `18 passed`
-  - frontend build: passed
+- backend tests: `18 passed`
+- frontend build: passed
   - demo artifacts: `artifacts/v05_assistant_demo`
   - final summaries: `artifacts/final_results`
 
@@ -215,6 +225,24 @@ This is the short milestone view of what has been added so far. It is not meant 
 - thesis assistant section expanded with rule-based and VLM-gated design notes
 - final result summaries collected under `artifacts/final_results`
 - README and v0.5 docs updated for final claim boundaries
+
+### Milestone 8: demo explanation hardening
+
+- detector outputs now include `class_id`, raw `class_name`, confidence, and bbox through the backend schema
+- overlay labels use detector class names rather than a collapsed semantic fallback
+- policy decisions now carry explicit `reasons` and `next_action`
+- quality text names blur only when `is_blurry` is true from the blur metric
+- ReID top matches are grouped by device before computing identity gaps
+- `/demo/samples` and `/demo/infer_sample` provide a local sample picker for stable demos
+- `/ask` can call a gated VLM provider with image input when configured; otherwise it reports a rule-based fallback reason
+
+For reliable demos, prefer:
+
+- `data/device_benchmark/queries/`
+- `data/device_benchmark/manual_v1023/queries/`
+- `data/device_benchmark/fullframe_demo/`
+- `data/detection/combined/test/images/`
+- `data/detection/industrial_multiclass/test/images/`
 
 ## What has been tested
 

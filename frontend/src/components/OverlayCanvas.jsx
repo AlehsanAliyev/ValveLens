@@ -15,7 +15,8 @@ function drawDetections(ctx, detections, scaleX, scaleY) {
     ctx.fillStyle = "rgba(211, 84, 46, 0.15)";
     ctx.fillRect(left, top, width, height);
     ctx.strokeRect(left, top, width, height);
-    const label = `${det.cls} ${(det.conf * 100).toFixed(0)}%`;
+    const classLabel = det.class_name || det.cls || "unknown";
+    const label = `${classLabel} ${(det.conf * 100).toFixed(0)}%`;
     ctx.fillStyle = "#1e1b17";
     ctx.fillRect(left, Math.max(0, top - 18), ctx.measureText(label).width + 8, 16);
     ctx.fillStyle = "#ffffff";

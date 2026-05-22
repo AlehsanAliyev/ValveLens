@@ -3,10 +3,13 @@ import { useParams } from "react-router-dom";
 
 import {
   askQuestion,
+  demoSampleUrl,
   getDebugStatus,
+  inferDemoSample,
   inferImage,
   inferVideo,
   inferWebcamFrame,
+  listDemoSamples,
   sendFeedback,
 } from "../api";
 import CameraInput from "../components/CameraInput";
@@ -28,6 +31,8 @@ export default function Live() {
   const [selectedDetectionId, setSelectedDetectionId] = useState(null);
   const [debugStatus, setDebugStatus] = useState(null);
   const [debugError, setDebugError] = useState("");
+  const [samples, setSamples] = useState([]);
+  const [selectedSample, setSelectedSample] = useState("");
   const sessionIdRef = useRef(
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
@@ -175,7 +180,7 @@ export default function Live() {
     }
   }
 
-  async function handleAsk(question) {
+  async function handleAsk(question, useVlm = false) {
     if (!activeResponse) return;
     const activeSessionId =
       mode === "webcam"
@@ -190,7 +195,7 @@ export default function Live() {
         session_id: activeSessionId,
         observation_id: activeResponse.request_id,
         selected_detection_id: selectedDetectionId,
-        use_vlm: false,
+        use_vlm: useVlm,
       });
       setAskResult(res);
     } catch (err) {
@@ -208,8 +213,36 @@ export default function Live() {
     }
   }
 
+  async function refreshSamples() {
+    try {
+      const res = await listDemoSamples();
+      setSamples(res.samples || []);
+    } catch {
+      setSamples([]);
+    }
+  }
+
+  async function handleSampleRun() {
+    if (!selectedSample) return;
+    try {
+      const res = await inferDemoSample(selectedSample);
+      setResponse(res);
+      if (selectedSample) {
+        const img = new Image();
+        img.onload = () => setMediaSize({ width: img.naturalWidth, height: img.naturalHeight });
+        img.src = demoSampleUrl(selectedSample);
+      }
+      setAskResult(null);
+      setSelectedDetectionId(null);
+      setStatus("");
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
   useEffect(() => {
     refreshDebugStatus();
+    refreshSamples();
   }, []);
 
   const detections = activeResponse?.detections || [];
@@ -242,14 +275,57 @@ export default function Live() {
           </VideoInput>
         )}
         {mode === "image" && (
-          <ImageInput onRun={handleImage} onMediaSize={setMediaSize}>
-            <OverlayCanvas
-              detections={detections}
-              mediaSize={mediaSize}
-              interactive={interactionMode === "tap"}
-              onSelect={handleTapSelect}
-            />
-          </ImageInput>
+          <>
+            <ImageInput onRun={handleImage} onMediaSize={setMediaSize}>
+              <OverlayCanvas
+                detections={detections}
+                mediaSize={mediaSize}
+                interactive={interactionMode === "tap"}
+                onSelect={handleTapSelect}
+              />
+            </ImageInput>
+            <div className="panel" style={{ marginTop: 12 }}>
+              <div className="pill">Demo Samples</div>
+              <div className="field" style={{ marginTop: 8 }}>
+                <select
+                  value={selectedSample}
+                  onChange={(event) => setSelectedSample(event.target.value)}
+                >
+                  <option value="">Select a local demo image</option>
+                  {samples.map((sample) => (
+                    <option key={sample.path} value={sample.path}>
+                      {sample.folder}: {sample.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="controls" style={{ marginTop: 8 }}>
+                <button className="button secondary" onClick={handleSampleRun} disabled={!selectedSample}>
+                  Run Sample
+                </button>
+              </div>
+              {selectedSample && (
+                <div className="media-stage" style={{ marginTop: 12 }}>
+                  <img
+                    src={demoSampleUrl(selectedSample)}
+                    alt="Selected demo sample"
+                    onLoad={(event) =>
+                      setMediaSize({
+                        width: event.currentTarget.naturalWidth,
+                        height: event.currentTarget.naturalHeight,
+                      })
+                    }
+                  />
+                  <OverlayCanvas
+                    detections={detections}
+                    mediaSize={mediaSize}
+                    interactive={interactionMode === "tap"}
+                    onSelect={handleTapSelect}
+                  />
+                </div>
+              )}
+            </div>
+          </>
         )}
         {mode === "video" && responses.length > 0 && (
           <div className="field" style={{ marginTop: 12 }}>

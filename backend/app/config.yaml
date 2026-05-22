@@ -19,9 +19,9 @@ tracker_iou_threshold: 0.3
 tracker_max_missed: 5
 tracker_smoothing_window: 5
 assistant:
-  enable_vlm: false
-  provider: openai
-  model: null
+  enable_vlm: true
+  provider: deepinfra
+  model: Qwen/Qwen2.5-VL-32B-Instruct
   include_image: true
   max_tokens: 300
   use_rule_fallback: true
