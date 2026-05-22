@@ -92,13 +92,18 @@ def _compact_detection(det: Dict[str, Any]) -> Dict[str, Any]:
         {
             "device_id": item.get("device_id"),
             "score": _round(item.get("score")),
+            "mean_score": _round(item.get("mean_score")),
+            "ref_count": item.get("ref_count"),
+            "best_reference_image": item.get("best_reference_image"),
         }
         for item in top_matches
     ]
     return {
         "det_id": det.get("det_id"),
         "bbox": det.get("bbox"),
-        "class_name": det.get("cls"),
+        "class_id": det.get("class_id"),
+        "class_name": det.get("class_name") or det.get("cls"),
+        "display_class": det.get("cls") or det.get("class_name") or "unknown",
         "detector_confidence": _round(det.get("conf")),
         "track_id": det.get("track_id"),
         "roi": det.get("roi") or {},
@@ -127,6 +132,8 @@ def _compact_detection(det: Dict[str, Any]) -> Dict[str, Any]:
 
 def _uncertainty_reasons(payload: Dict[str, Any], thresholds: Dict[str, Any]) -> List[str]:
     reasons = []
+    decision_reasons = (payload.get("decision") or {}).get("reasons") or []
+    reasons.extend(str(item) for item in decision_reasons if item)
     zone_top1 = ((payload.get("zone") or {}).get("top1")) or {}
     quality = payload.get("quality") or {}
     detections = payload.get("detections") or []
@@ -134,7 +141,7 @@ def _uncertainty_reasons(payload: Dict[str, Any], thresholds: Dict[str, Any]) ->
     if not zone_top1 or float(zone_top1.get("score") or 0.0) < float(thresholds["tau_zone"]):
         reasons.append("zone confidence is below threshold")
     if quality.get("is_blurry"):
-        reasons.append("image appears blurry")
+        reasons.append("blur score is below threshold")
     if quality.get("is_low_light"):
         reasons.append("image appears low-light")
 
@@ -176,9 +183,10 @@ def _uncertainty_reasons(payload: Dict[str, Any], thresholds: Dict[str, Any]) ->
                 and float(matches[0].get("score") or 0.0)
                 - float(matches[1].get("score") or 0.0)
                 < float(thresholds["tau_gap"])
+                and matches[0].get("device_id") != matches[1].get("device_id")
                 for matches in top_match_sets
             ):
-                reasons.append("ReID top matches are too close")
+                reasons.append("ReID identity margin low")
 
     return list(dict.fromkeys(reasons))
 
@@ -257,6 +265,7 @@ def build_evidence(
             "status": decision.get("status"),
             "action": decision.get("action"),
             "message": decision.get("message"),
+            "reasons": decision.get("reasons") or [],
             "selected_device": selected_device or None,
         },
         "accepted_or_deferred_reason": decision.get("message"),
@@ -399,10 +408,13 @@ def answer_from_evidence(question: str, evidence: Dict[str, Any]) -> Dict[str, A
             if fused_id:
                 answer = f"The selected {cls} candidate may be {fused_id}, but identity has not been accepted yet."
             else:
-                answer = f"The selected object appears to be a {cls}, but identity is uncertain."
+            answer = f"The selected object appears to be a {cls}, but exact identity is uncertain."
             evidence_used = _evidence_used("selected_detection", "detector", "ocr", "reid", "fusion")
         elif detections:
-            answer = "Please select a detected object first so I can answer about that device."
+            classes = ", ".join(
+                sorted({str(det.get("class_name") or det.get("display_class")) for det in detections})
+            )
+            answer = f"I see detected object candidates ({classes}), but please select one for exact identity."
             evidence_used = _evidence_used("detections")
         else:
             answer = "I do not have a detected device to identify yet."

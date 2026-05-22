@@ -104,9 +104,11 @@ def ask(payload: AskRequest) -> Dict[str, Any]:
     )
 
     if payload.use_vlm:
+        image_path = (response_payload.get("input") or {}).get("source")
         return answer_with_vlm_or_fallback(
             question=payload.question,
             evidence=evidence,
             config=thresholds,
+            image_path=image_path,
         )
     return answer_from_evidence(payload.question, evidence)

@@ -60,11 +60,15 @@ class OcrInfo(StrictBase):
 class ReIdMatch(StrictBase):
     device_id: str
     score: float
+    mean_score: Optional[float] = None
+    ref_count: Optional[int] = None
+    best_reference_image: Optional[str] = None
 
 
 class ReIdInfo(StrictBase):
     embedding_type: str
     top_matches: List[ReIdMatch]
+    raw_top_matches: Optional[List[ReIdMatch]] = None
 
 
 class FusedInfo(StrictBase):
@@ -76,6 +80,8 @@ class FusedInfo(StrictBase):
 class DetectionInfo(StrictBase):
     det_id: str
     cls: str
+    class_id: Optional[int] = None
+    class_name: Optional[str] = None
     conf: float
     bbox: BBox
     track_id: Optional[str] = None
@@ -102,7 +108,7 @@ class UiHints(StrictBase):
 
 
 class DecisionInfo(StrictBase):
-    status: Literal["ACCEPTED", "UNCERTAIN"]
+    status: Literal["ACCEPTED", "UNCERTAIN", "UNKNOWN"]
     selected_device: Optional[SelectedDevice] = None
     action: Literal[
         "NONE",
@@ -112,6 +118,8 @@ class DecisionInfo(StrictBase):
         "ASK_WIDER_VIEW",
     ]
     message: str
+    reasons: Optional[List[str]] = None
+    next_action: Optional[str] = None
     ui_hints: UiHints
 
 

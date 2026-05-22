@@ -83,6 +83,8 @@ class Detector:
         return [
             {
                 "det_id": str(uuid4()),
+                "class_id": -1,
+                "class_name": "unknown",
                 "cls": "unknown",
                 "conf": 0.5,
                 "bbox": {"x1": 0, "y1": 0, "x2": width - 1, "y2": height - 1},
@@ -119,10 +121,13 @@ class Detector:
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
                 cls_id = int(box.cls[0]) if box.cls is not None else -1
                 cls_name = self.class_names.get(cls_id, "unknown")
+                semantic_class = self._map_class(cls_name)
                 detections.append(
                     {
                         "det_id": str(uuid4()),
-                        "cls": self._map_class(cls_name),
+                        "class_id": cls_id,
+                        "class_name": cls_name,
+                        "cls": semantic_class if semantic_class != "unknown" else cls_name,
                         "conf": conf,
                         "bbox": {
                             "x1": int(max(0, x1)),

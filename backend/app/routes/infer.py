@@ -49,12 +49,15 @@ def _store_observation(response: InferenceResponse) -> None:
 @router.post("/infer/image", response_model=InferenceResponse)
 async def infer_image(request: Request, file: UploadFile = File(...)) -> InferenceResponse:
     data = await file.read()
+    safe_name = Path(file.filename or "upload.jpg").name
+    stored_path = UPLOAD_DIR / f"{uuid4()}_{safe_name}"
+    stored_path.write_bytes(data)
     img = Image.open(BytesIO(data)).convert("RGB")
     frame_bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     response = request.app.state.pipeline.process_frame(
         frame_bgr,
         input_type="image",
-        source=file.filename or "upload",
+        source=str(stored_path),
     )
     _store_observation(response)
     return response

@@ -3,7 +3,7 @@ tau_det: 0.40
 tau_ocr: 0.70
 tau_reid: 0.50
 tau_gap: 0.08
-tau_blur: 0.60
+tau_blur: 0.25
 tau_low_light: 0.35
 frame_stride: 5
 zone_search_topk: 20
@@ -20,7 +20,8 @@ tracker_max_missed: 5
 tracker_smoothing_window: 5
 assistant:
   enable_vlm: false
-  provider: env_configured
+  provider: openai
   model: null
+  include_image: true
   max_tokens: 300
   use_rule_fallback: true

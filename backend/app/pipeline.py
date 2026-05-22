@@ -17,7 +17,7 @@ from app.fusion import fuse_scores
 from app.ocr import OCRReader, match_enrolled_device_id
 from app.policy import decide_policy
 from app.quality import compute_quality
-from app.reid import ReIDEmbedder
+from app.reid import ReIDEmbedder, group_matches_by_device
 from app.schemas import (
     BBox,
     DecisionInfo,
@@ -251,18 +251,31 @@ class InferencePipeline:
                     )
 
             reid_data = self.reid.embed(crop_img)
+            max_device_matches = int(self.config.get("max_device_matches", 5))
             matches = self.device_index.search(
-                reid_data["embedding"], topk=self.config.get("max_device_matches", 5)
+                reid_data["embedding"], topk=max(max_device_matches * 4, 20)
             )
             matches = self._filter_device_matches(matches, zone_id)
+            grouped_matches = group_matches_by_device(matches)
             LOGGER.info(
                 "stage=reid request_id=%s det_id=%s matches=%d",
                 request_id,
                 det["det_id"],
                 len(matches),
             )
+            raw_top_matches = [
+                ReIdMatch(device_id=m[0]["device_id"], score=float(m[1]))
+                for m in matches[:max_device_matches]
+            ]
             top_matches = [
-                ReIdMatch(device_id=m[0]["device_id"], score=float(m[1])) for m in matches
+                ReIdMatch(
+                    device_id=m["device_id"],
+                    score=float(m["best_score"]),
+                    mean_score=float(m["mean_score"]),
+                    ref_count=int(m["ref_count"]),
+                    best_reference_image=m.get("best_reference_image"),
+                )
+                for m in grouped_matches[:max_device_matches]
             ]
             reid_top1 = float(top_matches[0].score) if top_matches else 0.0
             reid_top2 = float(top_matches[1].score) if len(top_matches) > 1 else 0.0
@@ -367,6 +380,8 @@ class InferencePipeline:
                 DetectionInfo(
                     det_id=det["det_id"],
                     cls=det["cls"],
+                    class_id=det.get("class_id"),
+                    class_name=det.get("class_name") or det.get("cls"),
                     conf=det_conf,
                     bbox=BBox(**bbox),
                     track_id=track_id,
@@ -377,7 +392,9 @@ class InferencePipeline:
                         boxes=ocr_result.get("boxes"),
                     ),
                     reid=ReIdInfo(
-                        embedding_type=reid_data["embedding_type"], top_matches=top_matches
+                        embedding_type=reid_data["embedding_type"],
+                        top_matches=top_matches,
+                        raw_top_matches=raw_top_matches,
                     ),
                     fused={
                         "device_id": fused_device_id,
