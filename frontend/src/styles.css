@@ -113,6 +113,11 @@ a {
   color: white;
 }
 
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .button.secondary {
   background: var(--accent-2);
 }
@@ -151,6 +156,12 @@ a {
   min-height: 360px;
 }
 
+.sample-picker {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
 .media-stage video,
 .media-stage img,
 .media-stage canvas {
@@ -173,6 +184,8 @@ a {
 }
 
 .pill {
+  display: inline-flex;
+  align-items: center;
   padding: 4px 10px;
   border-radius: 999px;
   background: #f4ede3;
@@ -193,11 +206,13 @@ a {
 }
 
 .input,
+.field input,
 select {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--line);
   font-size: 14px;
+  width: 100%;
 }
 
 .mono {

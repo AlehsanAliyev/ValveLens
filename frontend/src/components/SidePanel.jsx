@@ -164,7 +164,7 @@ export default function SidePanel({
               next: {decision.next_action}
             </div>
           )}
-          {decision?.status !== "ACCEPTED" && (
+          {response && decision && decision.status !== "ACCEPTED" && (
             <div className="mono" style={{ marginTop: 8 }}>
               Detector is uncertain. Use VLM description or select object manually.
             </div>
@@ -270,15 +270,16 @@ export default function SidePanel({
         <div>
           <div className="pill">Feedback</div>
           <div className="controls" style={{ marginTop: 8 }}>
-            <button className="button" onClick={onConfirm}>
+            <button className="button" onClick={onConfirm} disabled={!response}>
               Confirm
             </button>
-            <button className="button ghost" onClick={onReject}>
+            <button className="button ghost" onClick={onReject} disabled={!response}>
               Wrong
             </button>
             <button
               className={`button ${mode === "tap" ? "secondary" : "ghost"}`}
               onClick={() => onModeChange(mode === "tap" ? "view" : "tap")}
+              disabled={!response}
             >
               Tap Select
             </button>

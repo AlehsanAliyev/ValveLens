@@ -284,7 +284,7 @@ export default function Live() {
                 onSelect={handleTapSelect}
               />
             </ImageInput>
-            <div className="panel" style={{ marginTop: 12 }}>
+            <div className="sample-picker">
               <div className="pill">Demo Samples</div>
               <div className="field" style={{ marginTop: 8 }}>
                 <select
