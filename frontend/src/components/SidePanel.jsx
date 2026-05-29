@@ -96,6 +96,9 @@ export default function SidePanel({
   const decision = response?.decision;
   const detections = response?.detections || [];
   const decisionReasons = buildDecisionReasons(response);
+  const isVlmOnly = detections.some(
+    (det) => det.fused?.score_breakdown?.mode === "vlm_only_demo"
+  );
   async function handleAskSubmit(event) {
     event.preventDefault();
     const trimmed = question.trim();
@@ -139,6 +142,11 @@ export default function SidePanel({
         </div>
         <div>
           <div className="pill">Decision</div>
+          {isVlmOnly && (
+            <div style={{ marginTop: 8 }}>
+              <span className="pill">VLM-only demo estimate</span>
+            </div>
+          )}
           {decision?.status && (
             <div className="mono" style={{ marginTop: 6 }}>
               Decision: {decision.status}

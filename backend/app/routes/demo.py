@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from app import db
 from app.schemas import InferenceResponse
+from app.vlm_assistant import infer_image_with_vlm_only
 
 
 router = APIRouter(prefix="/demo", tags=["demo"])
@@ -89,6 +90,20 @@ def infer_demo_sample(request: Request, payload: SampleInferRequest) -> Inferenc
         input_type="image",
         source=str(path),
     )
+    _store_observation(response)
+    return response
+
+
+@router.post("/infer_sample_vlm", response_model=InferenceResponse)
+def infer_demo_sample_vlm(request: Request, payload: SampleInferRequest) -> InferenceResponse:
+    path = (REPO_ROOT / payload.path).resolve()
+    try:
+        path.relative_to(REPO_ROOT)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Sample path must stay inside repository.")
+    if not path.exists() or path.suffix.lower() not in IMAGE_EXTS:
+        raise HTTPException(status_code=404, detail="Sample image not found.")
+    response = infer_image_with_vlm_only(str(path), request.app.state.pipeline.config)
     _store_observation(response)
     return response
 

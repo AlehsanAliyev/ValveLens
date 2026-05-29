@@ -18,6 +18,16 @@ export async function inferImage(file) {
   return handleResponse(res);
 }
 
+export async function inferImageVlm(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/infer/image_vlm`, {
+    method: "POST",
+    body: form,
+  });
+  return handleResponse(res);
+}
+
 export async function inferVideo(file, sessionId) {
   const form = new FormData();
   form.append("file", file);
@@ -126,6 +136,15 @@ export async function listDemoSamples() {
 
 export async function inferDemoSample(path) {
   const res = await fetch(`${API_BASE}/demo/infer_sample`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  return handleResponse(res);
+}
+
+export async function inferDemoSampleVlm(path) {
+  const res = await fetch(`${API_BASE}/demo/infer_sample_vlm`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path }),

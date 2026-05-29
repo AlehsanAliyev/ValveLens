@@ -98,7 +98,7 @@ class Detector:
             return self._fallback_detection(width, height)
 
         try:
-            results = self.model.predict(source=frame_bgr, verbose=False)
+            results = self.model.predict(source=frame_bgr, conf=conf_thres, verbose=False)
         except Exception as exc:
             LOGGER.warning(
                 "Detector inference failed for '%s' (%s); using fallback output",

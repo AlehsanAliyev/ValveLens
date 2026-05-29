@@ -6,7 +6,9 @@ import {
   demoSampleUrl,
   getDebugStatus,
   inferDemoSample,
+  inferDemoSampleVlm,
   inferImage,
+  inferImageVlm,
   inferVideo,
   inferWebcamFrame,
   listDemoSamples,
@@ -33,6 +35,7 @@ export default function Live() {
   const [debugError, setDebugError] = useState("");
   const [samples, setSamples] = useState([]);
   const [selectedSample, setSelectedSample] = useState("");
+  const [inferenceRegime, setInferenceRegime] = useState("model");
   const sessionIdRef = useRef(
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
@@ -70,7 +73,7 @@ export default function Live() {
 
   async function handleImage(file) {
     try {
-      const res = await inferImage(file);
+      const res = inferenceRegime === "vlm" ? await inferImageVlm(file) : await inferImage(file);
       setResponse(res);
       setAskResult(null);
       setSelectedDetectionId(null);
@@ -195,7 +198,7 @@ export default function Live() {
         session_id: activeSessionId,
         observation_id: activeResponse.request_id,
         selected_detection_id: selectedDetectionId,
-        use_vlm: useVlm,
+        use_vlm: useVlm || inferenceRegime === "vlm",
       });
       setAskResult(res);
     } catch (err) {
@@ -225,7 +228,10 @@ export default function Live() {
   async function handleSampleRun() {
     if (!selectedSample) return;
     try {
-      const res = await inferDemoSample(selectedSample);
+      const res =
+        inferenceRegime === "vlm"
+          ? await inferDemoSampleVlm(selectedSample)
+          : await inferDemoSample(selectedSample);
       setResponse(res);
       if (selectedSample) {
         const img = new Image();
@@ -250,6 +256,32 @@ export default function Live() {
   return (
     <div className="live-layout">
       <div className="panel">
+        {mode === "image" && (
+          <div className="regime-switch">
+            <div className="pill">Inference Regime</div>
+            <div className="segmented" style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                className={inferenceRegime === "model" ? "active" : ""}
+                onClick={() => setInferenceRegime("model")}
+              >
+                ValveLens model
+              </button>
+              <button
+                type="button"
+                className={inferenceRegime === "vlm" ? "active" : ""}
+                onClick={() => setInferenceRegime("vlm")}
+              >
+                VLM-only demo
+              </button>
+            </div>
+            <div className="mono" style={{ marginTop: 8 }}>
+              {inferenceRegime === "vlm"
+                ? "VLM estimates boxes, tags, zones, and decision fields."
+                : "YOLO, OCR, ReID, fusion, and policy produce evidence-backed fields."}
+            </div>
+          </div>
+        )}
         {mode === "webcam" && (
           <CameraInput
             active

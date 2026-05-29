@@ -159,7 +159,15 @@ class InferencePipeline:
                 float(top_k_keyframes[0].get("score", 0.0)),
             )
 
-        detections_raw = self.detector.detect(frame_bgr, conf_thres=self.config.get("tau_det", 0.4))
+        detections_raw = self.detector.detect(
+            frame_bgr,
+            conf_thres=float(
+                self.config.get(
+                    "detector_candidate_conf",
+                    self.config.get("tau_det", 0.4),
+                )
+            ),
+        )
         LOGGER.info(
             "stage=detect request_id=%s detections=%d",
             request_id,

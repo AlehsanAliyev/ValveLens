@@ -12,6 +12,7 @@ from PIL import Image
 
 from app import db
 from app.schemas import InferenceResponse
+from app.vlm_assistant import infer_image_with_vlm_only
 
 router = APIRouter()
 
@@ -59,6 +60,17 @@ async def infer_image(request: Request, file: UploadFile = File(...)) -> Inferen
         input_type="image",
         source=str(stored_path),
     )
+    _store_observation(response)
+    return response
+
+
+@router.post("/infer/image_vlm", response_model=InferenceResponse)
+async def infer_image_vlm(request: Request, file: UploadFile = File(...)) -> InferenceResponse:
+    data = await file.read()
+    safe_name = Path(file.filename or "upload.jpg").name
+    stored_path = UPLOAD_DIR / f"{uuid4()}_{safe_name}"
+    stored_path.write_bytes(data)
+    response = infer_image_with_vlm_only(str(stored_path), request.app.state.pipeline.config)
     _store_observation(response)
     return response
 

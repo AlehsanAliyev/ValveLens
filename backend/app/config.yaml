@@ -1,5 +1,6 @@
 tau_zone: 0.65
 tau_det: 0.40
+detector_candidate_conf: 0.10
 tau_ocr: 0.70
 tau_reid: 0.50
 tau_gap: 0.08
