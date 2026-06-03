@@ -1,12 +1,12 @@
 # ValveLens Project Status
 
-Last updated: 2026-05-22
+Last updated: 2026-06-02
 
 This document is the single repo-level status note for ValveLens. Its job is simple: show what exists, what works, what was recently verified, and what is still incomplete so the project does not become hard to navigate.
 
 ## Current stage
 
-Current practical stage: `v0.5.1 final thesis/demo package prepared`
+Current practical stage: `v0.5.x interactive demo package with screenshot-ready Demo Flow mode`
 
 That means:
 
@@ -17,11 +17,14 @@ That means:
 - device FAISS/ReID is populated and validated on proxy reference/query images
 - OCR is available through Tesseract on Windows, but OCR accuracy is still condition-sensitive
 - backend API identity acceptance has been verified on the proxy benchmark
-- evidence-aware `/ask` interaction is implemented with rule-based answers and VLM fallback scaffolding
+- evidence-aware `/ask` interaction is implemented with rule-based answers, VLM visual answers, and fallback behavior
 - image inference audit tooling now diagnoses detector, quality, OCR, ReID, fusion, and policy causes for weak demo outputs
 - class-name display now preserves detector model names, so expanded classes such as `pipe`, `flange`, or `tank` do not silently become `unknown`
 - ReID candidates are grouped by unique `device_id` before ambiguity checks, so repeated references for one device do not create false ambiguity
-- VLM visual-understanding mode is implemented behind config/env gates and remains disabled by default
+- VLM visual-understanding mode is implemented behind config/env gates
+- VLM-only demo inference can populate overlay boxes, OCR-like tag estimates, zone candidates, quality fields, and decision fields
+- Demo Flow page at `/demo-flow` presents the real workflow as six screenshot-ready cards
+- Zone context schematic exists through `frontend/src/components/ZoneMap.jsx` and `/demo/zone-layout`
 - v0.5 assistant demo artifacts have been regenerated from accepted and uncertain observations
 - final thesis/demo result summaries are collected under `artifacts/final_results`
 
@@ -54,6 +57,7 @@ The v0.3 milestone is closed for a controlled proxy benchmark. v0.5 adds an inte
 - grouped ReID display and bullet decision reasons
 - Assistant / Visual Understanding card with Ask and Describe Image actions
 - local demo sample picker for reliable upload examples
+- screenshot-oriented Demo Flow page with Input, Detection, Evidence, Zone Context, Ask/Query, and Confirm cards
 - feedback actions for confirm, wrong, and tap-select
 - question input and answer panel for evidence-aware assistant responses
 - system status widget using `/debug/status`
@@ -86,6 +90,7 @@ The v0.3 milestone is closed for a controlled proxy benchmark. v0.5 adds an inte
 - audit CLI: `python -m app.cli.audit_inference_image --image PATH --model models\detector.pt --also-model models\detector_multiclass.pt`
 - VLM diagnostics: `python -m app.cli.check_vlm_backend`
 - VLM smoke fallback: `python -m app.cli.smoke_vlm_assistant --image PATH --question "What do you see in this image?" --use-vlm`
+- Demo Flow route: `http://localhost:5173/demo-flow`
 
 ### Recently verified
 
@@ -122,17 +127,22 @@ These were recently rechecked from the codebase and current repo state:
   - exported task rows: `63`
   - output: `backend/data/metrics_v03.csv`
   - summary artifact: `artifacts/v03_demo/v03_identity_validation_report.md`
-- v0.5 interactive assistant scaffold:
+- v0.5 interactive assistant:
   - evidence module: `backend/app/evidence.py`
   - ask route: `backend/app/routes/ask.py`
-  - VLM scaffold: `backend/app/vlm_assistant.py`
+  - VLM implementation: `backend/app/vlm_assistant.py`
   - demo CLI: `backend/app/cli/demo_assistant_queries.py`
   - frontend question UI: `frontend/src/components/SidePanel.jsx`
-  - mode: rule-based by default, VLM disabled in config
+  - modes: rule-based ask, VLM ask, and VLM-only demo inference
 - backend tests: `18 passed`
 - frontend build: passed
   - demo artifacts: `artifacts/v05_assistant_demo`
   - final summaries: `artifacts/final_results`
+- screenshot-ready frontend:
+  - page: `frontend/src/pages/DemoFlow.jsx`
+  - zone schematic: `frontend/src/components/ZoneMap.jsx`
+  - layout example: `data/demo_zone_layout.example.json`
+  - backend layout route: `GET /demo/zone-layout`
 
 ## What is only partially working
 
@@ -142,7 +152,7 @@ These were recently rechecked from the codebase and current repo state:
 - ReID works with the populated proxy device index; real deployment confidence still depends on collecting real reference/query images
 - uncertainty policy is real, but some scores are still heuristic rather than calibrated probabilities
 - the first generated full-frame proxy scenes are useful as preview artifacts, but they did not yet produce accepted decisions because detector/quality evidence was weaker than tight crop benchmark evidence
-- VLM provider execution is scaffolded but disabled by default; the current assistant uses deterministic evidence rules
+- VLM provider execution is implemented through external config/env credentials; rule-based fallback remains available
 
 ## What is still missing
 
@@ -151,7 +161,7 @@ These were recently rechecked from the codebase and current repo state:
 - a stable evaluation set with known ground-truth device identities
 - stronger session/task bookkeeping for more rigorous experiment analysis
 - a cleaned-up experiment log or changelog beyond this status note
-- real VLM provider execution after credentials/model configuration, with tests that it does not invent unsupported device IDs
+- continued VLM provider testing across more uploaded images
 
 ## Current milestone timeline
 
@@ -203,12 +213,12 @@ This is the short milestone view of what has been added so far. It is not meant 
 - API validation run on 120 proxy query images with 37 accepted identity decisions
 - v0.3 closure artifacts saved under `artifacts/identity_benchmark` and `artifacts/v03_demo`
 
-### Milestone 6: v0.5 interactive assistant scaffold
+### Milestone 6: v0.5 interactive assistant
 
 - structured evidence object added for observations, detections, OCR, ReID, fusion, decision, quality, and feedback
 - `/ask` route added for questions such as `What is this?`, `Where is V-1023?`, and `Why are you uncertain?`
 - rule-based answers implemented first for reliability and testing
-- VLM assistant scaffold added, but provider execution remains disabled by default
+- VLM assistant implementation added with provider execution gated by config/env
 - Live frontend side panel now shows answer mode, evidence chips, recommended next action, and uncertainty reason
 - scripted assistant demo validates accepted and uncertain observations through `/ask`
 

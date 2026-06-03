@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import cv2
 from fastapi import APIRouter, HTTPException, Request
@@ -71,6 +72,22 @@ def list_demo_samples(limit: int = 200) -> Dict[str, List[Dict[str, str]]]:
                 }
             )
     return {"samples": samples}
+
+
+@router.get("/zone-layout")
+def get_demo_zone_layout() -> Dict[str, Any]:
+    for name in ("demo_zone_layout.json", "demo_zone_layout.example.json"):
+        path = REPO_ROOT / "data" / name
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            payload.setdefault("source", str(path.relative_to(REPO_ROOT)).replace("\\", "/"))
+            return payload
+    return {"zones": [], "source": "fallback"}
 
 
 @router.post("/infer_sample", response_model=InferenceResponse)

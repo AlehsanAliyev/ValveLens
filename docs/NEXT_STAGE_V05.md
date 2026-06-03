@@ -1,6 +1,6 @@
 # Next Stage: v0.5 Interactive Assistant
 
-Last updated: 2026-05-22
+Last updated: 2026-06-02
 
 ValveLens v0.5 builds on the closed v0.3 controlled proxy identity benchmark. v0.5.1 packages the final thesis/demo evidence for an interactive assistant that answers user questions through ValveLens evidence rather than blind image guessing.
 
@@ -9,10 +9,13 @@ ValveLens v0.5 builds on the closed v0.3 controlled proxy identity benchmark. v0
 - `POST /ask` is available through `backend/app/routes/ask.py`.
 - Structured evidence is built by `backend/app/evidence.py`.
 - Rule-based answers are implemented for common operator questions.
-- VLM scaffolding exists in `backend/app/vlm_assistant.py`.
-- VLM execution is implemented but disabled by default in `backend/app/config.yaml`.
+- VLM visual answering and VLM-only structured demo inference exist in `backend/app/vlm_assistant.py`.
+- VLM execution is controlled by `backend/app/config.yaml` and external environment credentials.
 - The Live frontend side panel includes a question box, Describe Image action, answer panel, grouped ReID evidence, and decision reason bullets.
 - Local demo sample picker exists through `/demo/samples` and `/demo/infer_sample`.
+- Demo Flow mode exists at `/demo-flow` for screenshot capture.
+- `frontend/src/components/ZoneMap.jsx` renders zone context as real layout coordinates when available or as a schematic fallback.
+- `GET /demo/zone-layout` loads `data/demo_zone_layout.json` or `data/demo_zone_layout.example.json`.
 - Image inference audit CLI exists at `backend/app/cli/audit_inference_image.py`.
 - A reproducible assistant demo CLI exists at `backend/app/cli/demo_assistant_queries.py`.
 - Demo artifacts are saved under `artifacts/v05_assistant_demo`.
@@ -59,11 +62,30 @@ ReID contract:
 
 ## Remaining next steps
 
-1. Capture UI screenshots of the Ask/Visual Understanding panel on accepted and uncertain examples.
-2. Enable a real VLM provider only after credentials and model settings are configured outside git.
-3. Keep the prompt evidence-bound and test that the VLM does not invent device IDs.
+1. Capture `/demo-flow` screenshots for normal model mode and VLM-only demo mode.
+2. Capture Live page screenshots for operator-style interaction if needed.
+3. Keep VLM prompt behavior practical: direct visual answers for normal questions, evidence details only when asked.
 4. Validate the assistant on real full-frame device photos after those images are collected.
 5. Add a small browser-level demo recording for the final presentation.
+
+## Demo Flow screenshot guide
+
+Open:
+
+```text
+http://localhost:5173/demo-flow
+```
+
+Capture these six cards:
+
+1. Input: uploaded image or selected sample.
+2. Detection: image with overlay labels.
+3. Evidence: OCR, ReID, fusion, and decision.
+4. Zone Context: `Zone context schematic`.
+5. Ask / Query: quick question and visible answer panel.
+6. Confirm: Confirm, Wrong, and Tap Select feedback controls.
+
+The zone map is schematic unless real coordinates exist in `data/demo_zone_layout.json`. Scores greater than `1.0` are shown as raw scores, not percentages.
 
 ## Demo upload folders
 

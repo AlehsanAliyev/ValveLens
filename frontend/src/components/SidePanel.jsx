@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { demoZoneLabel, formatScore, formatZoneScore } from "./ZoneMap";
+
 const DEFAULT_THRESHOLDS = {
   tauZone: 0.65,
   tauDet: 0.4,
@@ -81,6 +83,7 @@ function buildDecisionReasons(response) {
 
 export default function SidePanel({
   response,
+  debugStatus,
   mode,
   onModeChange,
   onConfirm,
@@ -99,6 +102,7 @@ export default function SidePanel({
   const isVlmOnly = detections.some(
     (det) => det.fused?.score_breakdown?.mode === "vlm_only_demo"
   );
+  const displayStatus = decision?.status === "UNCERTAIN" ? "DEFERRED" : decision?.status;
   async function handleAskSubmit(event) {
     event.preventDefault();
     const trimmed = question.trim();
@@ -115,32 +119,32 @@ export default function SidePanel({
   return (
     <div className="panel">
       <div className="list">
-        <div>
+        <div className="side-card">
           <div className="pill">Zone Top1</div>
           <div style={{ marginTop: 8 }}>
             {zoneTop1 ? (
               <div className="row" style={{ alignItems: "center" }}>
-                <span className="mono">{zoneTop1.zone_name || zoneTop1.zone_id}</span>
-                <span className="pill">{(zoneTop1.score * 100).toFixed(0)}%</span>
+                <span className="mono">{demoZoneLabel(zoneTop1)}</span>
+                <span className="pill">Score {formatZoneScore(zoneTop1.score)}</span>
               </div>
             ) : (
               <div className="mono">No top zone yet</div>
             )}
           </div>
         </div>
-        <div>
+        <div className="side-card">
           <div className="pill">Zone Candidates</div>
           <div className="list" style={{ marginTop: 8 }}>
             {zoneCandidates.length === 0 && <div className="mono">No zones yet</div>}
-            {zoneCandidates.map((z) => (
-              <div key={z.zone_id} className="row" style={{ alignItems: "center" }}>
-                <span className="mono">{z.zone_name || z.zone_id}</span>
-                <span className="pill">{(z.score * 100).toFixed(0)}%</span>
+            {zoneCandidates.map((z, index) => (
+              <div key={`${z.zone_id || z.zone_name}-${index}`} className="row" style={{ alignItems: "center" }}>
+                <span className="mono">{demoZoneLabel(z, index)}</span>
+                <span className="pill">Score {formatZoneScore(z.score)}</span>
               </div>
             ))}
           </div>
         </div>
-        <div>
+        <div className="side-card">
           <div className="pill">Decision</div>
           {isVlmOnly && (
             <div style={{ marginTop: 8 }}>
@@ -148,8 +152,10 @@ export default function SidePanel({
             </div>
           )}
           {decision?.status && (
-            <div className="mono" style={{ marginTop: 6 }}>
-              Decision: {decision.status}
+            <div style={{ marginTop: 8 }}>
+              <span className={`status-badge ${decision.status?.toLowerCase()}`}>
+                {displayStatus}
+              </span>
             </div>
           )}
           <div style={{ marginTop: 6 }}>
@@ -157,7 +163,7 @@ export default function SidePanel({
           </div>
           {decision?.selected_device && (
             <div className="mono" style={{ marginTop: 8 }}>
-              selected: {decision.selected_device.device_id} ({(decision.selected_device.score * 100).toFixed(0)}%)
+              selected: {decision.selected_device.device_id} ({formatScore(decision.selected_device.score)})
             </div>
           )}
           {decisionReasons.length > 0 && (
@@ -178,7 +184,7 @@ export default function SidePanel({
             </div>
           )}
         </div>
-        <div>
+        <div className="side-card">
           <div className="pill">Identity Evidence</div>
           <div className="list" style={{ marginTop: 8 }}>
             {detections.length === 0 && (
@@ -187,12 +193,12 @@ export default function SidePanel({
             {detections.map((det) => {
               const hasOcr = det.ocr?.text;
               const conf = typeof det.ocr?.conf === "number"
-                ? ` (${(det.ocr.conf * 100).toFixed(0)}%)`
+                ? ` (${formatScore(det.ocr.conf)})`
                 : "";
               const topMatches = det.reid?.top_matches?.slice(0, 3) || [];
               const fusedDevice = det.fused?.device_id;
               const fusedScore = typeof det.fused?.final_score === "number"
-                ? ` (${(det.fused.final_score * 100).toFixed(0)}%)`
+                ? ` (${formatScore(det.fused.final_score)})`
                 : "";
               return (
                 <div key={det.det_id} className="mono">
@@ -203,7 +209,7 @@ export default function SidePanel({
                       ? topMatches
                           .map((m) => {
                             const count = m.ref_count ? ` refs:${m.ref_count}` : "";
-                            return `${m.device_id} ${(m.score * 100).toFixed(0)}%${count}`;
+                            return `${m.device_id} ${formatScore(m.score)}${count}`;
                           })
                           .join(" | ")
                       : "none"}
@@ -214,7 +220,7 @@ export default function SidePanel({
             })}
           </div>
         </div>
-        <div>
+        <div className="side-card">
           <div className="pill">Assistant / Visual Understanding</div>
           {selectedDetectionId && (
             <div className="mono" style={{ marginTop: 8 }}>
@@ -253,7 +259,7 @@ export default function SidePanel({
               <div className="row" style={{ alignItems: "center" }}>
                 <span className="pill">{askResult.mode || "rule_based"}</span>
                 <span className="mono">
-                  confidence: {(Number(askResult.confidence || 0) * 100).toFixed(0)}%
+                  confidence: {formatScore(askResult.confidence || 0)}
                 </span>
               </div>
               {askResult.evidence_used?.length > 0 && (
@@ -275,7 +281,7 @@ export default function SidePanel({
             </div>
           )}
         </div>
-        <div>
+        <div className="side-card">
           <div className="pill">Feedback</div>
           <div className="controls" style={{ marginTop: 8 }}>
             <button className="button" onClick={onConfirm} disabled={!response}>
@@ -293,6 +299,19 @@ export default function SidePanel({
             </button>
           </div>
         </div>
+        {debugStatus && (
+          <div className="side-card">
+            <div className="pill">System Health</div>
+            <div className="list" style={{ marginTop: 8 }}>
+              <div className="mono">devices: {debugStatus.counts?.devices ?? 0}</div>
+              <div className="mono">refs: {debugStatus.counts?.device_refs ?? 0}</div>
+              <div className="mono">faiss devices: {debugStatus.faiss?.devices ?? 0}</div>
+              <div className="mono">zones: {debugStatus.counts?.zones ?? 0}</div>
+              <div className="mono">ocr: local backend dependent</div>
+              <div className="mono">vlm: config/env dependent</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

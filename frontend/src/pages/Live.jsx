@@ -291,6 +291,7 @@ export default function Live() {
             <OverlayCanvas
               detections={detections}
               mediaSize={mediaSize}
+              decision={activeResponse?.decision}
               interactive={interactionMode === "tap"}
               onSelect={handleTapSelect}
             />
@@ -301,6 +302,7 @@ export default function Live() {
             <OverlayCanvas
               detections={detections}
               mediaSize={mediaSize}
+              decision={activeResponse?.decision}
               interactive={interactionMode === "tap"}
               onSelect={handleTapSelect}
             />
@@ -312,6 +314,7 @@ export default function Live() {
               <OverlayCanvas
                 detections={detections}
                 mediaSize={mediaSize}
+                decision={activeResponse?.decision}
                 interactive={interactionMode === "tap"}
                 onSelect={handleTapSelect}
               />
@@ -351,6 +354,7 @@ export default function Live() {
                   <OverlayCanvas
                     detections={detections}
                     mediaSize={mediaSize}
+                    decision={activeResponse?.decision}
                     interactive={interactionMode === "tap"}
                     onSelect={handleTapSelect}
                   />
@@ -377,6 +381,7 @@ export default function Live() {
       <div className="list">
         <SidePanel
           response={activeResponse}
+          debugStatus={debugStatus}
           mode={interactionMode}
           onModeChange={setInteractionMode}
           onConfirm={handleConfirm}

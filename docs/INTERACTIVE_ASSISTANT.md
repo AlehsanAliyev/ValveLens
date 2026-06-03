@@ -1,6 +1,6 @@
 # ValveLens Interactive Assistant
 
-Last updated: 2026-05-23
+Last updated: 2026-06-02
 
 This document describes the ValveLens v0.5.1 interactive assistant layer. The assistant is evidence-first: it answers user questions from structured ValveLens perception output instead of blindly guessing from an image.
 
@@ -26,7 +26,7 @@ The VLM layer is not allowed to invent device IDs, locations, or confidence. If 
 
 - `backend/app/evidence.py` builds a compact evidence object from an inference observation.
 - `backend/app/routes/ask.py` exposes `POST /ask`.
-- `backend/app/vlm_assistant.py` provides the VLM scaffold and rule fallback.
+- `backend/app/vlm_assistant.py` provides VLM visual answers, VLM-only structured demo inference, and rule fallback.
 - `backend/app/config.yaml` controls assistant settings.
 
 The current local demo configuration enables DeepInfra visual understanding when `.env` contains a DeepInfra endpoint and key:
@@ -140,6 +140,33 @@ Recommended demo folders:
 
 For object-specific questions, tap-select a detection first, then ask `What is this?`.
 
+## Demo Flow mode
+
+Open the screenshot-oriented flow at:
+
+```text
+http://localhost:5173/demo-flow
+```
+
+The Demo Flow page renders the real app workflow as six cards from the current backend response:
+
+1. Input: uploaded image or selected local sample path.
+2. Detection: current image with live overlay boxes, class names, identity status, and detector confidence.
+3. Evidence: OCR text, ReID candidates, fused identity, and accepted/deferred decision.
+4. Zone Context: `Zone context schematic` built from `/demo/zone-layout` when available, otherwise a schematic fallback.
+5. Ask / Query: question input, quick questions, answer text, answer mode, evidence chips, next action, and fallback reason.
+6. Confirm: Confirm, Wrong, Tap Select, selected detection, and feedback status.
+
+Use these folders first for screenshot-ready examples:
+
+- `data/device_benchmark/queries/`
+- `data/device_benchmark/manual_v1023/queries/`
+- `data/device_benchmark/fullframe_demo/`
+- `data/detection/combined/test/images/`
+- `data/detection/industrial_multiclass/test/images/`
+
+The zone graphic is a schematic unless real zone coordinates are supplied in `data/demo_zone_layout.json`. Scores greater than `1.0` are displayed as raw scores instead of percentages.
+
 ## VLM mode
 
 `backend/app/vlm_assistant.py` is intentionally gated by configuration and environment variables. It loads local `.env` values for demo runs but never hardcodes or prints credentials.
@@ -182,7 +209,7 @@ It writes:
 
 This separates detector failure, class-name mapping failure, quality-policy failure, OCR failure, ReID ambiguity, and UI display problems.
 
-Required prompt rule for future VLM provider execution:
+Required prompt rule for VLM provider execution:
 
 ```text
 You are an assistant for ValveLens. Answer using only the provided ValveLens evidence.

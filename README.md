@@ -8,14 +8,14 @@ The project is built around a simple research position:
 
 ValveLens therefore treats perception as a composed evidence pipeline rather than a single detector call. It combines scene context, object detection, OCR, retrieval-based identity, quality diagnostics, score fusion, and an uncertainty policy. When evidence is strong, the system can accept an identity. When evidence is weak, it defers and asks for user interaction instead of pretending to know.
 
-Current practical stage: `v0.5.1 final thesis/demo package`.
+Current practical stage: `v0.5.x interactive demo package with dual inference modes`.
 
 ## Current Status
 
 The repository is no longer a `v0.1` skeleton. The current implementation includes:
 
 - FastAPI backend with image, video, webcam, feedback, debug, devices, zones, and ask routes
-- React/Vite frontend with live image/webcam/video workflows, overlays, side-panel evidence, feedback, and an evidence-aware question interface
+- React/Vite frontend with live image/webcam/video workflows, overlays, side-panel evidence, feedback, an evidence-aware question interface, and an image-mode inference regime switch
 - trained YOLOv8 valve/gauge detector at `models/detector.pt`
 - OpenCLIP embeddings plus FAISS for zone retrieval and device ReID-style retrieval
 - SQLite metadata store for zones, keyframes, devices, references, observations, and feedback
@@ -26,7 +26,7 @@ The repository is no longer a `v0.1` skeleton. The current implementation includ
 - robustness preprocessing experiment module
 - manifest-based device identity benchmark workflow
 - controlled proxy device identity benchmark generated from the detector dataset
-- structured evidence layer for rule-based assistant answers and future VLM-gated explanations
+- structured evidence layer for rule-based answers, VLM visual answers, and a VLM-only demo inference path
 - final v0.5.1 thesis/demo summaries under `artifacts/final_results`
 
 Most recent local benchmark state:
@@ -43,7 +43,7 @@ Most recent local benchmark state:
 | Proxy ReID | `0.9917` top-1/top-k |
 | OCR | Tesseract-backed visible-tag exact match `67/85` (`0.7882`) |
 | API acceptance | `37` accepted and `83` deferred of `120`, with `0` API errors |
-| Assistant | Rule-based `/ask` answers generated for accepted and uncertain observations |
+| Assistant | Rule-based `/ask`, gated VLM visual answers, and VLM-only demo inference are implemented |
 | Backend tests | `18 passed` in the latest documented run |
 | Frontend build | Passed in the latest documented run |
 
@@ -124,7 +124,7 @@ ValveLens does not currently claim:
 - exact real-device identity accuracy on a real facility dataset
 - calibrated uncertainty probabilities
 - that preprocessing should already be enabled in runtime inference
-- that a VLM should directly replace the perception pipeline
+- that VLM-only output is a calibrated replacement for the evidence-backed perception pipeline
 
 It is fair to claim:
 
@@ -134,6 +134,7 @@ It is fair to claim:
 - ReID works on the generated proxy identity benchmark
 - OCR is blocked by local OCR backend availability, not by missing project architecture
 - the API can report uncertainty and defer instead of forcing identity
+- VLM-only demo mode can produce visual boxes, tag estimates, zone guesses, and decisions for interactive demonstrations
 - robustness preprocessing experiments exist as separate evidence, not runtime behavior
 
 ## Architecture
@@ -242,10 +243,11 @@ Configuration lives in `backend/app/config.yaml`:
 ```yaml
 tau_zone: 0.65
 tau_det: 0.40
+detector_candidate_conf: 0.10
 tau_ocr: 0.70
 tau_reid: 0.50
 tau_gap: 0.08
-tau_blur: 0.60
+tau_blur: 0.25
 tau_low_light: 0.35
 frame_stride: 5
 zone_search_topk: 20
@@ -256,7 +258,16 @@ detector_model: models/detector.pt
 ocr_preprocess: true
 ocr_resize_factor: 2.0
 ocr_expand_ratio: 0.12
+assistant:
+  enable_vlm: true
+  provider: deepinfra
+  model: Qwen/Qwen2.5-VL-32B-Instruct
+  include_image: true
+  max_tokens: 300
+  use_rule_fallback: true
 ```
+
+`detector_candidate_conf` controls which low-confidence boxes are surfaced to the UI. `tau_det` remains the policy threshold for deciding whether detection evidence is strong enough to trust.
 
 ```mermaid
 stateDiagram-v2
@@ -284,7 +295,8 @@ The core product behavior is intentional: if evidence is incomplete, the assista
 | Area | Files | Notes |
 | --- | --- | --- |
 | App entrypoint | `backend/app/main.py` | FastAPI app wiring |
-| Inference routes | `backend/app/routes/infer.py` | image, video, webcam frame |
+| Inference routes | `backend/app/routes/infer.py` | image, VLM-only image, video, webcam frame |
+| Demo routes | `backend/app/routes/demo.py` | sample listing, sample image serving, normal/VLM sample inference |
 | Pipeline | `backend/app/pipeline.py` | orchestrates quality, zone, detector, OCR, ReID, fusion, policy |
 | Detector | `backend/app/detector.py` | loads trained YOLOv8 detector |
 | Quality | `backend/app/quality.py` | blur, brightness, glare diagnostics |
@@ -296,16 +308,16 @@ The core product behavior is intentional: if evidence is incomplete, the assista
 | Tracker | `backend/app/tracker.py` | frame-to-frame continuity |
 | Persistence | `backend/app/db.py` | SQLite schema and helpers |
 | FAISS | `backend/app/faiss_store.py` | local vector index storage |
-| Ask/evidence | `backend/app/evidence.py`, `backend/app/routes/ask.py` | rule-based answers from structured evidence |
+| Ask/evidence/VLM | `backend/app/evidence.py`, `backend/app/routes/ask.py`, `backend/app/vlm_assistant.py` | rule-based answers, VLM visual answers, and VLM-only structured inference |
 | Debug | `backend/app/routes/debug.py` | DB and FAISS status |
 
 ### Frontend
 
 | Area | Files | Notes |
 | --- | --- | --- |
-| Live demo | `frontend/src/pages/Live.jsx` | webcam, image, video workflows |
+| Live demo | `frontend/src/pages/Live.jsx` | webcam, image, video workflows and image-mode regime switch |
 | Overlay | `frontend/src/components/OverlayCanvas.jsx` | detection boxes and interaction |
-| Evidence panel | `frontend/src/components/SidePanel.jsx` | decision, OCR, ReID, zone, reasons, ask box |
+| Evidence panel | `frontend/src/components/SidePanel.jsx` | decision, OCR, ReID, zone, reasons, ask box, VLM-only estimate badge |
 | API client | `frontend/src/api.js` | backend calls |
 | Device/zone pages | `frontend/src/pages/Devices.jsx`, `frontend/src/pages/Zones.jsx` | management views |
 
@@ -447,9 +459,17 @@ The OCR result is condition-sensitive: readable tags work in many controlled pro
 
 The API result should be interpreted as controlled proxy validation. Full-frame real-device validation is still required before making deployment claims.
 
-## Structured Evidence and Ask Interface
+## Structured Evidence, Ask Interface, and VLM Modes
 
-ValveLens includes an intermediate evidence layer for interactive assistant work. The final v0.5.1 demo uses deterministic rule-based answers by default, with a VLM scaffold gated behind configuration and credentials.
+ValveLens includes an intermediate evidence layer for interactive assistant work. The app now supports two complementary interaction paths:
+
+- evidence-backed assistant answers from stored ValveLens observations
+- VLM visual-understanding answers when `use_vlm: true`
+
+Image mode also includes two inference regimes:
+
+- `ValveLens model`: the normal YOLO/OCR/ReID/fusion/policy pipeline
+- `VLM-only demo`: a DeepInfra/Qwen vision call estimates boxes, tags, zone candidates, quality fields, and decision fields in the same response shape as the normal pipeline
 
 ```mermaid
 flowchart TD
@@ -458,12 +478,13 @@ flowchart TD
     C --> D[Rule-based ask route]
     D --> E[Human-readable answer]
 
-    C --> F[Future VLM input]
-    F -. later .-> G[Explanation from evidence]
-    H[Raw image] -. not direct source of truth .-> F
+    C --> F[VLM visual answer when requested]
+    H[Stored input image] --> F
+    H --> G[VLM-only structured inference]
+    G --> I[Overlay, zone, OCR-like tag estimate, decision]
 ```
 
-The VLM path should not replace the perception pipeline. It should receive ValveLens evidence:
+The normal ask route can answer directly from ValveLens evidence:
 
 - zone candidates
 - detections
@@ -475,7 +496,19 @@ The VLM path should not replace the perception pipeline. It should receive Valve
 - image quality diagnostics
 - uncertainty reasons
 
-Then it may explain the result in natural language. It should not invent a device ID that is not supported by OCR, ReID, fusion, or the enrolled database.
+When VLM is requested, the VLM receives both the image and compact evidence. For normal visual questions it gives a concise visual answer. For questions about uncertainty or evidence, it explains detector/OCR/ReID/fusion status.
+
+The VLM-only demo path is intentionally different from the evidence-backed path: it uses the VLM to estimate UI-compatible fields directly. This is useful for demos on real uploaded industrial images where the focused YOLO detector misses, while still keeping the normal pipeline available.
+
+VLM provider settings are loaded from config and environment variables. Secrets must stay in `.env` or the shell environment, not in git. Supported variables include:
+
+- `DEEPINFRA_ENDPOINT`
+- `DEEPINFRA_API_KEY`
+- `DEEPINFRA_TOKEN`
+- `OPENAI_API_KEY`
+- `VALVELENS_VLM_MODEL`
+- `VALVELENS_VLM_PROVIDER`
+- `VALVELENS_ENABLE_VLM`
 
 Final assistant artifacts:
 
@@ -681,10 +714,15 @@ artifacts/robustness/restoration_preview/
 
 ```text
 POST /infer/image
+POST /infer/image_vlm
 POST /infer/video
 POST /infer/webcam/frame
 POST /ask
 POST /feedback
+GET  /demo/samples
+POST /demo/infer_sample
+POST /demo/infer_sample_vlm
+GET  /demo/sample_file
 POST /zones/create
 POST /zones/{zone_id}/keyframes
 POST /zones/rebuild_index
@@ -694,7 +732,7 @@ POST /devices/rebuild_index
 GET  /debug/status
 ```
 
-Every inference response is logged as an observation. This gives the project traceability for later metrics, feedback, and experiment analysis.
+Every normal or VLM-only inference response is logged as an observation. This gives the project traceability for later metrics, feedback, and experiment analysis.
 
 ## Example Ask Route
 
@@ -704,12 +742,21 @@ Run inference first, then ask from the latest or selected observation:
 $body = @{
   question = "Why are you uncertain?"
   obs_id = "<OBSERVATION_REQUEST_ID>"
+  use_vlm = $false
 } | ConvertTo-Json
 
 Invoke-RestMethod -Method Post -Uri http://localhost:8000/ask -ContentType "application/json" -Body $body
 ```
 
-The answer is rule-based and grounded in stored ValveLens evidence.
+With `use_vlm = $false`, the answer is rule-based and grounded in stored ValveLens evidence. With `use_vlm = $true`, the backend sends the stored image plus compact evidence to the configured VLM provider and falls back to rule-based output if the provider is unavailable.
+
+For a direct VLM smoke test:
+
+```powershell
+cd D:\python_works\ValveLens\backend
+python -m app.cli.check_vlm_backend
+python -m app.cli.smoke_vlm_assistant --image "..\data\manual_identity\Screenshot 2026-05-21 162931.png" --question "What is this?" --use-vlm
+```
 
 ## Metrics and Experiment Logging
 
@@ -765,6 +812,7 @@ This history matters because ValveLens has moved from a broad prototype to a mor
 9. validate proxy ReID and API identity acceptance
 10. add evidence-aware `/ask` interaction
 11. package final v0.5.1 thesis/demo artifacts
+12. add VLM-only demo inference and image-mode regime switching
 
 ## Final v0.5.1 Package
 
@@ -787,7 +835,7 @@ python -m app.cli.demo_assistant_queries --observation-ids 3fa6485b-b5a1-43c0-b0
 
 ## Remaining Work
 
-The final v0.5.1 demo package is ready for thesis use, but these remain future work:
+The interactive demo is functional, but these remain future work:
 
 1. Real identity validation
    - proxy benchmark is useful but synthetic
@@ -797,14 +845,14 @@ The final v0.5.1 demo package is ready for thesis use, but these remain future w
    - the controlled proxy API benchmark has accepted examples
    - live deployment claims need full-frame scenes with known device identity
 
-3. VLM provider execution
-   - the scaffold exists and is gated
-   - credentials and model settings must stay outside git
-   - future tests should verify that the VLM does not invent unsupported device IDs
+3. VLM-only mode hardening
+   - structured VLM output can vary by provider/model
+   - bounding boxes and scores are VLM-estimated rather than calibrated detector outputs
+   - provider credentials and model settings must stay outside git
 
-4. UI evidence capture
-   - capture accepted and uncertain Ask-panel screenshots for the thesis
-   - record a short browser-level demo if needed for presentation
+4. UI polish and browser-level regression checks
+   - capture representative normal-mode and VLM-only screenshots
+   - verify mobile/desktop layout when the VLM returns several boxes or long text
 
 ## Documentation Map
 
@@ -851,4 +899,4 @@ ValveLens combines project code with local datasets and model artifacts. Dataset
 
 ## Short Summary
 
-ValveLens is a research prototype for uncertainty-aware industrial device localization and identity verification. It is not just a detector. It is a pipeline that localizes context, detects device candidates, reads tags, retrieves enrolled references, fuses evidence, and decides whether to accept or ask. The current system has strong structural coverage and proxy ReID validation. The next v0.3 work is to make OCR operational locally and validate at least one accepted identity path on full-frame proxy or real device scenes.
+ValveLens is an interactive industrial vision assistant. It is not just a detector: the normal mode localizes context, detects device candidates, reads tags, retrieves enrolled references, fuses evidence, and decides whether to accept or ask. The current system also includes a VLM-only demo mode that can estimate boxes, tags, zones, quality, and decisions directly from an uploaded image when the focused detector is not sufficient for a visual demo.

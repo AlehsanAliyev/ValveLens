@@ -134,6 +134,11 @@ export async function listDemoSamples() {
   return handleResponse(res);
 }
 
+export async function getDemoZoneLayout() {
+  const res = await fetch(`${API_BASE}/demo/zone-layout`);
+  return handleResponse(res);
+}
+
 export async function inferDemoSample(path) {
   const res = await fetch(`${API_BASE}/demo/infer_sample`, {
     method: "POST",
