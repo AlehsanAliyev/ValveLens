@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from app.evidence import answer_from_evidence
+from app.evidence import answer_from_evidence, suggest_followups
 from app.quality import compute_quality
 from app.schemas import (
     BBox,
@@ -480,6 +480,7 @@ def answer_with_vlm(
         "evidence_used": ["image", "structured_evidence"],
         "recommended_next_action": "Use ValveLens OCR/ReID evidence for exact identity, or tap-select the object.",
         "uncertainty_reason": "",
+        "suggested_questions": suggest_followups(evidence),
         "evidence": evidence,
         "vlm_status": "provider_response",
         "provider": provider,

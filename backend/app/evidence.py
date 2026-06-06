@@ -298,6 +298,43 @@ def _evidence_used(*items: str) -> List[str]:
     return [item for item in items if item]
 
 
+def suggest_followups(evidence: Dict[str, Any]) -> List[str]:
+    decision = evidence.get("decision") or {}
+    detections = evidence.get("detections") or []
+    quality = evidence.get("quality") or {}
+    reasons = (evidence.get("uncertainty") or {}).get("reasons") or []
+    visible_ids = evidence.get("visible_device_ids") or []
+    suggestions: List[str] = []
+
+    if detections:
+        suggestions.append("Which devices are visible?")
+        suggestions.append("What tag did you read?")
+    else:
+        suggestions.append("What do you see in this image?")
+
+    if decision.get("status") != "ACCEPTED" or reasons:
+        suggestions.append("Why are you uncertain?")
+        suggestions.append("What should I do next?")
+    else:
+        suggestions.append("Why did you accept this identity?")
+
+    if visible_ids:
+        suggestions.append(f"Where is {visible_ids[0]}?")
+    elif detections:
+        suggestions.append("Which object should I select?")
+
+    if quality.get("is_blurry") or quality.get("is_low_light") or quality.get("glare_score", 0) >= 0.05:
+        suggestions.append("How can I improve this image?")
+
+    seen = set()
+    ordered = []
+    for item in suggestions:
+        if item not in seen:
+            seen.add(item)
+            ordered.append(item)
+    return ordered[:5]
+
+
 def answer_from_evidence(question: str, evidence: Dict[str, Any]) -> Dict[str, Any]:
     q = (question or "").strip().lower()
     decision = evidence.get("decision") or {}
@@ -361,6 +398,37 @@ def answer_from_evidence(question: str, evidence: Dict[str, Any]) -> Dict[str, A
     elif "what should" in q or "next" in q:
         answer = recommended_next_action
         evidence_used = _evidence_used("decision", "uncertainty")
+    elif "improve" in q or "better image" in q or "image quality" in q:
+        quality = evidence.get("quality") or {}
+        tips = []
+        if quality.get("is_blurry"):
+            tips.append("hold the camera steadier or move closer before capturing")
+        if quality.get("is_low_light"):
+            tips.append("increase lighting or use a brighter angle")
+        if float(quality.get("glare_score") or 0.0) >= 0.05:
+            tips.append("change angle to reduce reflection on metal or glass")
+        if not tips:
+            tips.append("show the tag and the whole device body in the same frame")
+            tips.append("tap-select the object if multiple devices are visible")
+        answer = "To improve this capture, " + "; ".join(tips) + "."
+        evidence_used = _evidence_used("quality", "decision", "detections")
+    elif "select" in q or "tap" in q:
+        if detections:
+            ranked = sorted(
+                detections,
+                key=lambda det: float(det.get("detector_confidence") or 0.0),
+                reverse=True,
+            )
+            best = ranked[0]
+            cls = best.get("class_name") or best.get("display_class") or "object"
+            answer = (
+                f"Select the {cls} candidate in the {best.get('location')} of the frame. "
+                "That gives the assistant a specific object for OCR, ReID, and feedback."
+            )
+            confidence = float(best.get("detector_confidence") or confidence or 0.0)
+        else:
+            answer = "There is no detector box to select yet. Capture a clearer view or ask for a visual description."
+        evidence_used = _evidence_used("detections", "selected_detection")
     elif "where" in q:
         target_ids = extract_device_ids_from_text(question)
         zone_name = zone_top1.get("zone_name") or zone_top1.get("zone_id") or "unknown zone"
@@ -437,5 +505,6 @@ def answer_from_evidence(question: str, evidence: Dict[str, Any]) -> Dict[str, A
         "evidence_used": evidence_used,
         "recommended_next_action": recommended_next_action,
         "uncertainty_reason": uncertainty_reason,
+        "suggested_questions": suggest_followups(evidence),
         "evidence": evidence,
     }

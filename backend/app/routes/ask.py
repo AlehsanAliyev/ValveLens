@@ -86,6 +86,7 @@ def ask(payload: AskRequest) -> Dict[str, Any]:
             "evidence_used": [],
             "recommended_next_action": "RUN_INFERENCE",
             "uncertainty_reason": "no observation found",
+            "suggested_questions": ["What can you do?", "What image should I upload?"],
             "evidence": {},
         }
 
